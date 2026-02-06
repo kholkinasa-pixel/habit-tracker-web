@@ -5,23 +5,65 @@ if (tg) {
     tg.expand();
 }
 
+const API_BASE = "https://keaton-drys-gerda.ngrok-free.dev";
+
 let currentDate = new Date();
 const months = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
                 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
-// Пример данных: { "2025-02-05": "good", "2025-02-06": "minimum", ... }
+// Данные календаря из API: { "2025-02-05": "good", "2025-02-06": "minimum", ... }
 // Значения: "no-data" | "minimum" | "good"
+let dayData = {};
+
 function getDayData(year, month, day) {
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     return dayData[key] || 'no-data';
 }
 
-// Замените на реальные данные из API/БД
-let dayData = {
-    '2025-02-01': 'good',
-    '2025-02-02': 'minimum',
-    '2025-02-05': 'good',
-};
+function hideLoadError() {
+    const el = document.getElementById('load-error');
+    if (el) el.style.display = 'none';
+}
+function showLoadError(msg) {
+    let el = document.getElementById('load-error');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'load-error';
+        el.style.cssText = 'margin-top:12px;padding:10px;background:rgba(200,0,0,0.15);border-radius:8px;font-size:13px;';
+        document.querySelector('.header')?.parentElement?.insertBefore(el, document.getElementById('calendar'));
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+async function loadCalendarData() {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId) {
+        console.warn('Telegram user id не найден, календарь пустой');
+        dayData = {};
+        showLoadError('Не удалось определить пользователя (откройте из Telegram).');
+        renderCalendar();
+        return;
+    }
+    if (!API_BASE) {
+        dayData = {};
+        showLoadError('Не задан адрес API. Укажите BACKEND_PUBLIC_URL в config.py и обновите календарь на GitHub.');
+        renderCalendar();
+        return;
+    }
+    hideLoadError();
+    try {
+        const url = `${API_BASE}/api/users/${userId}/calendar`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText);
+        dayData = await res.json();
+    } catch (e) {
+        console.error('Ошибка загрузки календаря:', e);
+        dayData = {};
+        showLoadError('Не удалось загрузить данные. Проверьте BACKEND_PUBLIC_URL и что сервер доступен.');
+    }
+    renderCalendar();
+}
 
 function renderCalendar() {
     const year = currentDate.getFullYear();
@@ -80,4 +122,5 @@ document.getElementById('next').onclick = () => {
     renderCalendar();
 };
 
-renderCalendar();
+// Загружаем данные из БД через API и рисуем календарь
+loadCalendarData();
