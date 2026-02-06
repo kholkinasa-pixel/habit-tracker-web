@@ -54,8 +54,17 @@ async function loadCalendarData() {
     hideLoadError();
     try {
         const url = `${API_BASE}/api/users/${userId}/calendar`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+            headers: {
+                // Обход страницы-предупреждения ngrok в бесплатной версии
+                'ngrok-skip-browser-warning': 'true'
+            }
+        });
         if (!res.ok) throw new Error(res.statusText);
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Ответ не JSON (возможно, страница ngrok). Добавьте заголовок ngrok-skip-browser-warning.');
+        }
         dayData = await res.json();
     } catch (e) {
         console.error('Ошибка загрузки календаря:', e);
