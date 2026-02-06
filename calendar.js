@@ -52,24 +52,40 @@ async function loadCalendarData() {
         return;
     }
     hideLoadError();
+    const url = `${API_BASE}/api/users/${userId}/calendar`;
     try {
-        const url = `${API_BASE}/api/users/${userId}/calendar`;
         const res = await fetch(url, {
+            method: 'GET',
+            mode: 'cors',
             headers: {
-                // Обход страницы-предупреждения ngrok в бесплатной версии
+                'Accept': 'application/json',
                 'ngrok-skip-browser-warning': 'true'
             }
         });
-        if (!res.ok) throw new Error(res.statusText);
-        const contentType = res.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Ответ не JSON (возможно, страница ngrok). Добавьте заголовок ngrok-skip-browser-warning.');
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            const text = await res.text();
+            const preview = text.slice(0, 80).replace(/\s+/g, ' ');
+            showLoadError('Сервер вернул не JSON (код ' + res.status + '). Проверьте, что бот запущен и ngrok активен. ' + (preview.length ? 'Ответ: ' + preview + '…' : ''));
+            dayData = {};
+            renderCalendar();
+            return;
+        }
+        if (!res.ok) {
+            showLoadError('Ошибка ' + res.status + ': ' + res.statusText);
+            dayData = {};
+            renderCalendar();
+            return;
         }
         dayData = await res.json();
     } catch (e) {
         console.error('Ошибка загрузки календаря:', e);
+        const msg = e.message || String(e);
+        const isNetwork = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed');
+        showLoadError(isNetwork
+            ? 'Нет связи с сервером. Запущен ли бот? Работает ли ngrok? URL: ' + API_BASE
+            : 'Ошибка: ' + msg);
         dayData = {};
-        showLoadError('Не удалось загрузить данные. Проверьте BACKEND_PUBLIC_URL и что сервер доступен.');
     }
     renderCalendar();
 }
