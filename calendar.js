@@ -15,12 +15,11 @@ function getApiBase() {
 }
 const API_BASE = getApiBase();
 
-const monthsShort = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
-    'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
+    'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
 
-let currentYear = new Date().getFullYear();
 let dayData = {};
-let habitTexts = []; // [{ id, text }, ...]
+let habitTexts = [];
 let selectedHabitId = null;
 
 function getDayData(year, month, day) {
@@ -166,62 +165,95 @@ function renderHabitSwitcher() {
     });
 }
 
-function renderMonthBlock(year, month) {
-    const block = document.createElement('div');
-    block.className = 'month-block';
-
-    const title = document.createElement('div');
-    title.className = 'month-block-title';
-    title.textContent = monthsShort[month];
-    block.appendChild(title);
-
-    const grid = document.createElement('div');
-    grid.className = 'month-grid';
-
-    ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach(d => {
-        const el = document.createElement('div');
-        el.className = 'weekday';
-        el.textContent = d;
-        grid.appendChild(el);
-    });
-
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startPadding = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-
-    for (let i = 0; i < startPadding; i++) {
-        const el = document.createElement('div');
-        el.className = 'day empty';
-        grid.appendChild(el);
-    }
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-        const el = document.createElement('div');
-        el.className = 'day ' + getDayData(year, month, d);
-        el.textContent = d;
-        grid.appendChild(el);
-    }
-    const totalCells = startPadding + lastDay.getDate();
-    const remainder = totalCells % 7;
-    if (remainder > 0) {
-        for (let i = 0; i < 7 - remainder; i++) {
-            const el = document.createElement('div');
-            el.className = 'day empty';
-            grid.appendChild(el);
-        }
-    }
-
-    block.appendChild(grid);
-    return block;
+/** Понедельник = первый день недели. Возвращает понедельник для даты d. */
+function getMonday(d) {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - (day === 0 ? 6 : day - 1);
+    date.setDate(diff);
+    return date;
 }
 
 function renderCalendar() {
-    document.getElementById('year-title').textContent = currentYear;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const futureStart = new Date(today);
+    futureStart.setDate(today.getDate() + 14);
+    const mondayFuture2 = getMonday(futureStart);
+
+    const totalWeeks = 10;
+    const weeks = [];
+    for (let i = 0; i < totalWeeks; i++) {
+        const monday = new Date(mondayFuture2);
+        monday.setDate(mondayFuture2.getDate() - 7 * i);
+        const weekDays = [];
+        let isFutureWeek = monday > today;
+        for (let j = 0; j < 7; j++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + j);
+            const isFuture = d > today;
+            const isToday = d.getTime() === today.getTime();
+            const status = isFuture ? null : getDayData(d.getFullYear(), d.getMonth(), d.getDate());
+            weekDays.push({
+                date: d,
+                dayNum: d.getDate(),
+                isFuture,
+                isToday,
+                status,
+                isFutureWeek
+            });
+            if (d <= today) isFutureWeek = false;
+        }
+        weeks.push({ monday: new Date(monday), days: weekDays, isFutureWeek: weeks.length < 2 ? true : weeks[weeks.length - 1]?.days[0]?.isFuture });
+    }
+
+    weeks.forEach((w, idx) => {
+        w.isFutureWeek = w.days.every(d => d.isFuture);
+    });
 
     const container = document.getElementById('calendar');
     container.innerHTML = '';
-    for (let m = 0; m < 12; m++) {
-        container.appendChild(renderMonthBlock(currentYear, m));
-    }
+    container.className = 'calendar-view';
+
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+
+    weeks.forEach((week) => {
+        const row = document.createElement('div');
+        row.className = 'calendar-week-row';
+
+        const monthLabel = document.createElement('div');
+        monthLabel.className = 'month-label';
+        const dayWithFirst = week.days.find(d => d.date.getDate() === 1);
+        monthLabel.textContent = dayWithFirst ? monthsShort[dayWithFirst.date.getMonth()] : '';
+        row.appendChild(monthLabel);
+
+        const weekContent = document.createElement('div');
+        weekContent.className = 'week-content';
+
+        const cellsRow = document.createElement('div');
+        cellsRow.className = 'cells-row';
+        week.days.forEach((day) => {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (day.isFuture) {
+                cell.classList.add('blocked');
+                cell.textContent = day.dayNum;
+            } else {
+                cell.classList.add('status-' + (day.status || 'no-data'));
+                if (day.isToday) cell.classList.add('today');
+                if (day.isToday) cell.textContent = day.dayNum;
+            }
+            cellsRow.appendChild(cell);
+        });
+        weekContent.appendChild(cellsRow);
+        row.appendChild(weekContent);
+
+        grid.appendChild(row);
+    });
+
+    container.appendChild(grid);
 }
 
 document.getElementById('habit-title-btn').addEventListener('click', (e) => {
