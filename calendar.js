@@ -14,6 +14,7 @@ const months = ['Январь', 'Февраль', 'Март', 'Апрель', '�
 // Данные календаря из API: { "2025-02-05": "good", "2025-02-06": "minimum", ... }
 // Значения: "no-data" | "minimum" | "good"
 let dayData = {};
+let habitText = '';
 
 function getDayData(year, month, day) {
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -41,43 +42,65 @@ async function loadCalendarData() {
     if (!userId) {
         console.warn('Telegram user id не найден, календарь пустой');
         dayData = {};
+        habitText = '';
         showLoadError('Не удалось определить пользователя (откройте из Telegram).');
         renderCalendar();
         return;
     }
     if (!API_BASE) {
         dayData = {};
+        habitText = '';
         showLoadError('Не задан адрес API. Укажите BACKEND_PUBLIC_URL в config.py и обновите календарь на GitHub.');
         renderCalendar();
         return;
     }
     hideLoadError();
-    const url = `${API_BASE}/api/users/${userId}/calendar`;
+    const calendarUrl = `${API_BASE}/api/users/${userId}/calendar`;
+    const habitUrl = `${API_BASE}/api/users/${userId}/habit`;
     try {
-        const res = await fetch(url, {
-            method: 'GET',
-            mode: 'cors',
-            headers: {
-                'Accept': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            }
-        });
+        const [calRes, habitRes] = await Promise.all([
+            fetch(calendarUrl, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            }),
+            fetch(habitUrl, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            }).catch(() => null)
+        ]);
+        const res = calRes;
         const contentType = res.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
             const text = await res.text();
             const preview = text.slice(0, 80).replace(/\s+/g, ' ');
             showLoadError('Сервер вернул не JSON (код ' + res.status + '). Проверьте, что бот запущен и ngrok активен. ' + (preview.length ? 'Ответ: ' + preview + '…' : ''));
             dayData = {};
+            habitText = '';
             renderCalendar();
             return;
         }
         if (!res.ok) {
             showLoadError('Ошибка ' + res.status + ': ' + res.statusText);
             dayData = {};
+            habitText = '';
             renderCalendar();
             return;
         }
         dayData = await res.json();
+        if (habitRes && habitRes.ok) {
+            const habitData = await habitRes.json();
+            habitText = habitData.habit_text || '';
+        } else {
+            habitText = '';
+        }
     } catch (e) {
         console.error('Ошибка загрузки календаря:', e);
         const msg = e.message || String(e);
@@ -86,6 +109,7 @@ async function loadCalendarData() {
             ? 'Нет связи с сервером. Запущен ли бот? Работает ли ngrok? URL: ' + API_BASE
             : 'Ошибка: ' + msg);
         dayData = {};
+        habitText = '';
     }
     renderCalendar();
 }
@@ -93,6 +117,9 @@ async function loadCalendarData() {
 function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
+
+    const habitEl = document.getElementById('habit-title');
+    if (habitEl) habitEl.textContent = habitText ? `📝 ${habitText}` : '';
 
     document.getElementById('month-title').textContent = `${months[month]} ${year}`;
 
