@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Habit Calendar</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Если календарь открывается с другого домена (например GitHub Pages), укажите URL API:
+        // window.API_BASE_URL = 'https://your-backend.com';
+    </script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -12,6 +16,14 @@
             padding: 16px;
             background: var(--tg-theme-bg-color);
             color: var(--tg-theme-text-color);
+        }
+        .habit-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+            min-height: 24px;
         }
         .header {
             display: flex;
@@ -54,6 +66,7 @@
     </style>
 </head>
 <body>
+    <div class="habit-title" id="habit-title"></div>
     <div class="header">
         <button id="prev">‹</button>
         <h2 id="month-title"></h2>
