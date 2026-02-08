@@ -192,7 +192,7 @@ function renderCalendar() {
         minDataDate.setHours(0, 0, 0, 0);
         const mondayMin = getMonday(minDataDate);
         const weeksFromMin = Math.ceil((mondayFuture2 - mondayMin) / (7 * 24 * 60 * 60 * 1000));
-        totalWeeks = Math.max(weeksFromMin + 1, 4);
+        totalWeeks = weeksFromMin + 1;
     } else {
         totalWeeks = 3;
     }
