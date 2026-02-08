@@ -182,7 +182,21 @@ function renderCalendar() {
     futureStart.setDate(today.getDate() + 14);
     const mondayFuture2 = getMonday(futureStart);
 
-    const totalWeeks = 10;
+    let totalWeeks;
+    const dataDates = Object.keys(dayData).map(k => {
+        const [y, m, d] = k.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    });
+    if (dataDates.length > 0) {
+        const minDataDate = new Date(Math.min(...dataDates.map(d => d.getTime())));
+        minDataDate.setHours(0, 0, 0, 0);
+        const mondayMin = getMonday(minDataDate);
+        const weeksFromMin = Math.ceil((mondayFuture2 - mondayMin) / (7 * 24 * 60 * 60 * 1000));
+        totalWeeks = Math.max(weeksFromMin + 1, 4);
+    } else {
+        totalWeeks = 3;
+    }
+
     const weeks = [];
     for (let i = 0; i < totalWeeks; i++) {
         const monday = new Date(mondayFuture2);
