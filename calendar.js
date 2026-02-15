@@ -15,6 +15,15 @@ function getApiBase() {
 }
 const API_BASE = getApiBase();
 
+// user_id: из initData (при InlineKeyboard) или из user_id в URL (при Reply Keyboard web_app — initData часто пустой)
+function getUserId() {
+    const fromInitData = tg?.initDataUnsafe?.user?.id;
+    if (fromInitData) return fromInitData;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('user_id');
+    return fromUrl ? parseInt(fromUrl, 10) : null;
+}
+
 const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
     'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
 
@@ -59,7 +68,7 @@ function toggleDropdown() {
 }
 
 async function loadHabits() {
-    const userId = tg?.initDataUnsafe?.user?.id;
+    const userId = getUserId();
     if (!userId) return [];
     const habitUrl = `${API_BASE}/api/users/${userId}/habit`;
     try {
@@ -81,7 +90,7 @@ async function loadHabits() {
 }
 
 async function loadCalendarData(habitId) {
-    const userId = tg?.initDataUnsafe?.user?.id;
+    const userId = getUserId();
     if (!userId) {
         dayData = {};
         showLoadError('Не удалось определить пользователя (откройте из Telegram).');
