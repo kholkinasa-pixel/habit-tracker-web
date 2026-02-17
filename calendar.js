@@ -235,14 +235,18 @@ function renderCalendar() {
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';
 
-    weeks.forEach((week) => {
+    weeks.forEach((week, index) => {
         const row = document.createElement('div');
         row.className = 'calendar-week-row';
 
         const monthLabel = document.createElement('div');
         monthLabel.className = 'month-label';
         const dayWithFirst = week.days.find(d => d.date.getDate() === 1);
-        monthLabel.textContent = dayWithFirst ? monthsShort[dayWithFirst.date.getMonth()] : '';
+        const isEarliestWeek = index === weeks.length - 1;
+        const monthForLabel = dayWithFirst
+            ? dayWithFirst.date.getMonth()
+            : (isEarliestWeek ? week.monday.getMonth() : -1);
+        monthLabel.textContent = monthForLabel >= 0 ? monthsShort[monthForLabel] : '';
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
