@@ -211,7 +211,6 @@ function renderCalendar() {
         const monday = new Date(mondayFuture2);
         monday.setDate(mondayFuture2.getDate() - 7 * i);
         const weekDays = [];
-        let isFutureWeek = monday > today;
         for (let j = 0; j < 7; j++) {
             const d = new Date(monday);
             d.setDate(monday.getDate() + j);
@@ -223,17 +222,11 @@ function renderCalendar() {
                 dayNum: d.getDate(),
                 isFuture,
                 isToday,
-                status,
-                isFutureWeek
+                status
             });
-            if (d <= today) isFutureWeek = false;
         }
-        weeks.push({ monday: new Date(monday), days: weekDays, isFutureWeek: weeks.length < 2 ? true : weeks[weeks.length - 1]?.days[0]?.isFuture });
+        weeks.push({ monday: new Date(monday), days: weekDays });
     }
-
-    weeks.forEach((w, idx) => {
-        w.isFutureWeek = w.days.every(d => d.isFuture);
-    });
 
     const container = document.getElementById('calendar');
     container.innerHTML = '';
