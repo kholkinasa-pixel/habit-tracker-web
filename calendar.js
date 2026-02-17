@@ -247,6 +247,9 @@ function renderCalendar() {
             ? dayWithFirst.date.getMonth()
             : (isEarliestWeek ? week.monday.getMonth() : -1);
         monthLabel.textContent = monthForLabel >= 0 ? monthsShort[monthForLabel] : '';
+        const prevMonth = index > 0 ? weeks[index - 1].monday.getMonth() : -1;
+        const isNewMonth = monthForLabel >= 0 && (index === 0 || monthForLabel !== prevMonth);
+        if (isNewMonth && index > 0) row.classList.add('month-start');
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
