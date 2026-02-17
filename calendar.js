@@ -249,7 +249,12 @@ function renderCalendar() {
         monthLabel.textContent = monthForLabel >= 0 ? monthsShort[monthForLabel] : '';
         const prevMonth = index > 0 ? weeks[index - 1].monday.getMonth() : -1;
         const isNewMonth = monthForLabel >= 0 && (index === 0 || monthForLabel !== prevMonth);
-        if (isNewMonth && index > 0) row.classList.add('month-start');
+        if (isNewMonth && index > 0) {
+            const spacer = document.createElement('div');
+            spacer.className = 'month-spacer';
+            spacer.setAttribute('aria-hidden', 'true');
+            grid.appendChild(spacer);
+        }
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
