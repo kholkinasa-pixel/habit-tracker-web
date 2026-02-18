@@ -161,7 +161,7 @@ async def cmd_start(message: Message) -> None:
 async def cmd_calendar(message: Message) -> None:
     """Открыть календарь привычек (Web App)"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Открыть трекер", web_app=WebAppInfo(url=WEBAPP_URL))]
+        [InlineKeyboardButton(text="Открыть трекер", web_app=WebAppInfo(url=_webapp_url(message.from_user.id)))]
     ])
     await message.answer("Календарь привычек:", reply_markup=keyboard)
 

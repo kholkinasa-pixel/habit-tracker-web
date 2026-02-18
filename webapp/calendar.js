@@ -11,7 +11,7 @@ function getApiBase() {
     const fromUrl = params.get('api_url');
     if (fromUrl) return fromUrl.replace(/\/$/, '');
     if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/$/, '');
-    return 'https://keaton-drys-gerda.ngrok-free.dev';
+    return 'https://habit-tracker-web-production-f65e.up.railway.app';
 }
 const API_BASE = getApiBase();
 
