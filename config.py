@@ -1,12 +1,23 @@
 import os
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# URL для Telegram Web App (укажите свой хостинг, например ngrok или GitHub Pages)
-WEBAPP_URL = "https://kholkinasa-pixel.github.io/habit-tracker-web/calendar.html"
+def _require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"❌ Переменная окружения {name} не найдена!")
+    return value
 
-# FastAPI сервер для API привычек
-API_HOST = "0.0.0.0"
-API_PORT = 8000
 
-BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL")
+# Обязательные переменные
+BOT_TOKEN = _require_env("BOT_TOKEN")
+BACKEND_PUBLIC_URL = _require_env("BACKEND_PUBLIC_URL")
+
+# WebApp (можно оставить в коде, можно тоже в env)
+WEBAPP_URL = os.getenv(
+    "WEBAPP_URL",
+    "https://kholkinasa-pixel.github.io/habit-tracker-web/calendar.html"
+)
+
+# API
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
+API_PORT = int(os.getenv("API_PORT", 8000))

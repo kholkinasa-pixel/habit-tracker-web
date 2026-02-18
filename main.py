@@ -36,7 +36,7 @@ except RuntimeError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=BOT_TOKEN)
+bot = None
 dp = Dispatcher()
 scheduler = AsyncIOScheduler()
 
@@ -227,6 +227,8 @@ def run_api():
 
 
 async def main() -> None:
+    global bot
+    bot = Bot(token=BOT_TOKEN)
     await init_db()
     # Запускаем FastAPI сервер в фоновом потоке
     api_thread = threading.Thread(target=run_api, daemon=True)
