@@ -3,9 +3,11 @@ FastAPI сервер для отдачи данных привычек в JSON.
 """
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db, get_daily_logs_for_user, get_daily_logs_for_habit, get_habits
@@ -35,6 +37,28 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Habit Tracker API", lifespan=lifespan)
+
+# Корневая директория проекта (рядом с api.py)
+_STATIC_DIR = Path(__file__).resolve().parent
+
+
+@app.get("/calendar.html")
+async def serve_calendar_html():
+    """Раздача Mini App — same-origin, избегаем проблем с CORS в Telegram WebView."""
+    path = _STATIC_DIR / "calendar.html"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="text/html")
+
+
+@app.get("/calendar.js")
+async def serve_calendar_js():
+    """Раздача скрипта календаря."""
+    path = _STATIC_DIR / "calendar.js"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="application/javascript")
+
 
 # allow_credentials=False обязательно при allow_origins=["*"], иначе браузер блокирует
 app.add_middleware(
