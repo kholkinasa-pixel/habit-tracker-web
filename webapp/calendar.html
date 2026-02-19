@@ -101,9 +101,15 @@
             gap: 2px;
         }
         .cells-row {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
+            display: flex;
+            align-items: stretch;
             gap: 4px;
+        }
+        .cells-row .day-cell {
+            flex: 1;
+        }
+        .cells-row .day-cell.month-boundary-start {
+            margin-left: 16px;
         }
         .day-cell {
             aspect-ratio: 1;
