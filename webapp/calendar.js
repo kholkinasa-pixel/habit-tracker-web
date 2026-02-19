@@ -5,12 +5,16 @@ if (tg) {
     tg.expand();
 }
 
-// API URL: из api_url в query, или window.API_BASE_URL, или fallback
+// API URL: api_url в query, window.API_BASE_URL, или same-origin (когда Mini App на том же домене что и API)
 function getApiBase() {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get('api_url');
     if (fromUrl) return fromUrl.replace(/\/$/, '');
-    if (window.API_BASE_URL) return window.API_BASE_URL.replace(/\/$/, '');
+    if (window.API_BASE_URL) return String(window.API_BASE_URL).replace(/\/$/, '');
+    // Same-origin — Mini App раздаётся с Railway вместе с API, fetch без CORS
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        return window.location.origin;
+    }
     return 'https://habit-tracker-web-production-f65e.up.railway.app';
 }
 const API_BASE = getApiBase();
@@ -74,11 +78,7 @@ async function loadHabits() {
     try {
         const res = await fetch(habitUrl, {
             method: 'GET',
-            mode: 'cors',
-            headers: {
-                'Accept': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            }
+            headers: { 'Accept': 'application/json' }
         });
         if (!res.ok) return [];
         const data = await res.json();
@@ -111,17 +111,13 @@ async function loadCalendarData(habitId) {
     try {
         const res = await fetch(calendarUrl, {
             method: 'GET',
-            mode: 'cors',
-            headers: {
-                'Accept': 'application/json',
-                'ngrok-skip-browser-warning': 'true'
-            }
+            headers: { 'Accept': 'application/json' }
         });
         const contentType = res.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
             const text = await res.text();
             const preview = text.slice(0, 80).replace(/\s+/g, ' ');
-            showLoadError('Сервер вернул не JSON. Проверьте, что бот запущен и ngrok активен. ' + (preview.length ? preview + '…' : ''));
+            showLoadError('Сервер вернул не JSON. ' + (preview.length ? preview + '…' : ''));
             dayData = {};
             renderCalendar();
             return;
@@ -137,7 +133,7 @@ async function loadCalendarData(habitId) {
         console.error('Ошибка загрузки календаря:', e);
         const msg = e.message || String(e);
         const isNetwork = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Load failed');
-        showLoadError(isNetwork ? 'Нет связи с сервером. Запущен ли бот? Работает ли ngrok?' : 'Ошибка: ' + msg);
+        showLoadError(isNetwork ? 'Нет связи с сервером. Проверьте подключение к интернету.' : 'Ошибка: ' + msg);
         dayData = {};
     }
     renderCalendar();
@@ -262,9 +258,12 @@ function renderCalendar() {
 
         const cellsRow = document.createElement('div');
         cellsRow.className = 'cells-row';
-        week.days.forEach((day) => {
+        week.days.forEach((day, j) => {
+            const prevMonth = j > 0 ? week.days[j - 1].date.getMonth() : -1;
+            const currMonth = day.date.getMonth();
+            const isMonthBoundary = j > 0 && currMonth !== prevMonth;
             const cell = document.createElement('div');
-            cell.className = 'day-cell';
+            cell.className = 'day-cell' + (isMonthBoundary ? ' month-boundary-start' : '');
             if (day.isFuture) {
                 cell.classList.add('blocked');
                 cell.textContent = day.dayNum;
