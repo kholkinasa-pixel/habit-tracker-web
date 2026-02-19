@@ -261,14 +261,9 @@ function renderCalendar() {
         week.days.forEach((day, j) => {
             const prevMonth = j > 0 ? week.days[j - 1].date.getMonth() : -1;
             const currMonth = day.date.getMonth();
-            if (j > 0 && currMonth !== prevMonth) {
-                const boundarySpacer = document.createElement('div');
-                boundarySpacer.className = 'month-boundary-spacer';
-                boundarySpacer.setAttribute('aria-hidden', 'true');
-                cellsRow.appendChild(boundarySpacer);
-            }
+            const isMonthBoundary = j > 0 && currMonth !== prevMonth;
             const cell = document.createElement('div');
-            cell.className = 'day-cell';
+            cell.className = 'day-cell' + (isMonthBoundary ? ' month-boundary-start' : '');
             if (day.isFuture) {
                 cell.classList.add('blocked');
                 cell.textContent = day.dayNum;
