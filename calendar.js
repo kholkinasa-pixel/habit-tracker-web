@@ -258,7 +258,15 @@ function renderCalendar() {
 
         const cellsRow = document.createElement('div');
         cellsRow.className = 'cells-row';
-        week.days.forEach((day) => {
+        week.days.forEach((day, j) => {
+            const prevMonth = j > 0 ? week.days[j - 1].date.getMonth() : -1;
+            const currMonth = day.date.getMonth();
+            if (j > 0 && currMonth !== prevMonth) {
+                const boundarySpacer = document.createElement('div');
+                boundarySpacer.className = 'month-boundary-spacer';
+                boundarySpacer.setAttribute('aria-hidden', 'true');
+                cellsRow.appendChild(boundarySpacer);
+            }
             const cell = document.createElement('div');
             cell.className = 'day-cell';
             if (day.isFuture) {
