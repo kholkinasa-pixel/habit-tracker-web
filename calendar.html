@@ -109,9 +109,16 @@
             flex: 1;
         }
         .cells-row .day-cell.month-boundary-start {
-            margin-left: 12px;
-            border-left: 2px solid rgba(128, 128, 128, 0.5);
-            padding-left: 0;
+            position: relative;
+        }
+        .cells-row .day-cell.month-boundary-start::before {
+            content: '';
+            position: absolute;
+            left: -4px;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            background: rgba(128, 128, 128, 0.7);
         }
         .day-cell {
             aspect-ratio: 1;
