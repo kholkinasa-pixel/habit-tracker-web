@@ -246,6 +246,10 @@ function renderCalendar() {
         const prevMonth = index > 0 ? weeks[index - 1].monday.getMonth() : -1;
         const isNewMonth = monthForLabel >= 0 && (index === 0 || monthForLabel !== prevMonth);
         if (isNewMonth && index > 0) {
+            const line = document.createElement('div');
+            line.className = 'month-separator-line';
+            line.setAttribute('aria-hidden', 'true');
+            grid.appendChild(line);
             const spacer = document.createElement('div');
             spacer.className = 'month-spacer';
             spacer.setAttribute('aria-hidden', 'true');
@@ -258,12 +262,9 @@ function renderCalendar() {
 
         const cellsRow = document.createElement('div');
         cellsRow.className = 'cells-row';
-        week.days.forEach((day, j) => {
-            const prevMonth = j > 0 ? week.days[j - 1].date.getMonth() : -1;
-            const currMonth = day.date.getMonth();
-            const isMonthBoundary = j > 0 && currMonth !== prevMonth;
+        week.days.forEach((day) => {
             const cell = document.createElement('div');
-            cell.className = 'day-cell' + (isMonthBoundary ? ' month-boundary-start' : '');
+            cell.className = 'day-cell';
             if (day.isFuture) {
                 cell.classList.add('blocked');
                 cell.textContent = day.dayNum;
