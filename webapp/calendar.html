@@ -86,13 +86,6 @@
             gap: 8px;
             align-items: center;
         }
-        .month-separator-line {
-            height: 2px;
-            min-height: 2px;
-            background: rgba(128, 128, 128, 0.6);
-            flex-shrink: 0;
-            width: 100%;
-        }
         .month-spacer {
             height: 12px;
             flex-shrink: 0;
@@ -123,17 +116,17 @@
             border-radius: 6px;
             font-size: 12px;
             font-weight: 500;
-            border: none;
+            border: 2px solid transparent;
         }
         .day-cell.empty {
             background: transparent;
-            border: none;
+            border-color: transparent;
             visibility: hidden;
         }
         /* Заблокированные (будущие) дни — фон как у страницы, белая обводка */
         .day-cell.blocked {
             background: #F2F2F2;
-            border: 1px solid #fff;
+            border-color: #fff;
         }
         /* Прошедшие даты — только заливка, без обводки */
         .day-cell.status-no-data {
@@ -148,7 +141,7 @@
         }
         /* Текущий день — синяя обводка */
         .day-cell.today {
-            border: 2px solid #1976d2 !important;
+            border-color: #1976d2 !important;
             color: #1976d2;
             font-weight: 600;
         }

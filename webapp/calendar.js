@@ -269,10 +269,6 @@ function renderCalendar() {
         const prevMonth = index > 0 ? displayRows[index - 1].month : -1;
         const isNewMonth = index > 0 && rowData.month !== prevMonth;
         if (isNewMonth) {
-            const line = document.createElement('div');
-            line.className = 'month-separator-line';
-            line.setAttribute('aria-hidden', 'true');
-            grid.appendChild(line);
             const spacer = document.createElement('div');
             spacer.className = 'month-spacer';
             spacer.setAttribute('aria-hidden', 'true');
@@ -284,7 +280,8 @@ function renderCalendar() {
 
         const monthLabel = document.createElement('div');
         monthLabel.className = 'month-label';
-        monthLabel.textContent = isNewMonth || index === 0 ? monthsShort[rowData.month] : '';
+        const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
+        monthLabel.textContent = isLastRowOfMonth ? monthsShort[rowData.month] : '';
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
