@@ -116,17 +116,16 @@
             border-radius: 6px;
             font-size: 12px;
             font-weight: 500;
-            border: 2px solid transparent;
+            border: none;
         }
         .day-cell.empty {
             background: transparent;
-            border-color: transparent;
             visibility: hidden;
         }
         /* Заблокированные (будущие) дни — фон как у страницы, белая обводка */
         .day-cell.blocked {
             background: #F2F2F2;
-            border-color: #fff;
+            border: 1px solid #fff;
         }
         /* Прошедшие даты — только заливка, без обводки */
         .day-cell.status-no-data {
@@ -139,9 +138,9 @@
             background: #1976d2;
             color: #fff;
         }
-        /* Текущий день — синяя обводка */
+        /* Текущий день — синяя обводка (box-shadow не влияет на layout) */
         .day-cell.today {
-            border-color: #1976d2 !important;
+            box-shadow: 0 0 0 2px #1976d2;
             color: #1976d2;
             font-weight: 600;
         }
