@@ -244,8 +244,9 @@ function renderCalendar() {
             : (isEarliestWeek ? week.monday.getMonth() : -1);
         monthLabel.textContent = monthForLabel >= 0 ? monthsShort[monthForLabel] : '';
         const prevMonth = index > 0 ? weeks[index - 1].monday.getMonth() : -1;
-        const isNewMonth = monthForLabel >= 0 && (index === 0 || monthForLabel !== prevMonth);
-        if (isNewMonth && index > 0) {
+        const currMonth = week.monday.getMonth();
+        const isNewMonth = index > 0 && currMonth !== prevMonth;
+        if (isNewMonth) {
             const line = document.createElement('div');
             line.className = 'month-separator-line';
             line.setAttribute('aria-hidden', 'true');
