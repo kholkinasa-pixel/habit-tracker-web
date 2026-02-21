@@ -138,9 +138,9 @@
             background: #1976d2;
             color: #fff;
         }
-        /* Текущий день — обводка как у статуса «Хорошо» */
+        /* Текущий день — обводка как у статуса «Хорошо» (box-shadow не влияет на layout) */
         .day-cell.today {
-            border: 1px solid #1976d2;
+            box-shadow: 0 0 0 1px #1976d2;
             color: #1976d2;
             font-weight: 600;
         }
