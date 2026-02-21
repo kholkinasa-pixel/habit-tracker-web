@@ -224,6 +224,40 @@ function renderCalendar() {
         weeks.push({ monday: new Date(monday), days: weekDays });
     }
 
+    // Разбить недели по месяцам: если неделя пересекает границу — разделить на две части
+    const displayRows = [];
+    for (let i = 0; i < weeks.length; i++) {
+        const week = weeks[i];
+        const firstMonth = week.days[0].date.getMonth();
+        const lastMonth = week.days[6].date.getMonth();
+        if (firstMonth === lastMonth) {
+            displayRows.push({ month: firstMonth, days: week.days });
+        } else {
+            let splitIndex = -1;
+            for (let j = 1; j < 7; j++) {
+                if (week.days[j].date.getMonth() !== week.days[j - 1].date.getMonth()) {
+                    splitIndex = j;
+                    break;
+                }
+            }
+            if (splitIndex > 0) {
+                const laterPart = [];
+                for (let j = 0; j < 7; j++) {
+                    laterPart.push(j >= splitIndex ? week.days[j] : null);
+                }
+                const earlierPart = [];
+                for (let j = 0; j < 7; j++) {
+                    earlierPart.push(j < splitIndex ? week.days[j] : null);
+                }
+                // Сначала добавляем часть «позже» месяца (например март), затем «раньше» (февраль)
+                displayRows.push({ month: week.days[splitIndex].date.getMonth(), days: laterPart });
+                displayRows.push({ month: week.days[0].date.getMonth(), days: earlierPart });
+            } else {
+                displayRows.push({ month: firstMonth, days: week.days });
+            }
+        }
+    }
+
     const container = document.getElementById('calendar');
     container.innerHTML = '';
     container.className = 'calendar-view';
@@ -231,21 +265,9 @@ function renderCalendar() {
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';
 
-    weeks.forEach((week, index) => {
-        const row = document.createElement('div');
-        row.className = 'calendar-week-row';
-
-        const monthLabel = document.createElement('div');
-        monthLabel.className = 'month-label';
-        const dayWithFirst = week.days.find(d => d.date.getDate() === 1);
-        const isEarliestWeek = index === weeks.length - 1;
-        const monthForLabel = dayWithFirst
-            ? dayWithFirst.date.getMonth()
-            : (isEarliestWeek ? week.monday.getMonth() : -1);
-        monthLabel.textContent = monthForLabel >= 0 ? monthsShort[monthForLabel] : '';
-        const prevMonth = index > 0 ? weeks[index - 1].monday.getMonth() : -1;
-        const currMonth = week.monday.getMonth();
-        const isNewMonth = index > 0 && currMonth !== prevMonth;
+    displayRows.forEach((rowData, index) => {
+        const prevMonth = index > 0 ? displayRows[index - 1].month : -1;
+        const isNewMonth = index > 0 && rowData.month !== prevMonth;
         if (isNewMonth) {
             const line = document.createElement('div');
             line.className = 'month-separator-line';
@@ -256,6 +278,13 @@ function renderCalendar() {
             spacer.setAttribute('aria-hidden', 'true');
             grid.appendChild(spacer);
         }
+
+        const row = document.createElement('div');
+        row.className = 'calendar-week-row';
+
+        const monthLabel = document.createElement('div');
+        monthLabel.className = 'month-label';
+        monthLabel.textContent = monthsShort[rowData.month];
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
@@ -263,10 +292,12 @@ function renderCalendar() {
 
         const cellsRow = document.createElement('div');
         cellsRow.className = 'cells-row';
-        week.days.forEach((day) => {
+        rowData.days.forEach((day) => {
             const cell = document.createElement('div');
             cell.className = 'day-cell';
-            if (day.isFuture) {
+            if (day === null) {
+                cell.classList.add('empty');
+            } else if (day.isFuture) {
                 cell.classList.add('blocked');
                 cell.textContent = day.dayNum;
             } else {
