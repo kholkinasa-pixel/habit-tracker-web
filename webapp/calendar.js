@@ -284,7 +284,7 @@ function renderCalendar() {
 
         const monthLabel = document.createElement('div');
         monthLabel.className = 'month-label';
-        monthLabel.textContent = monthsShort[rowData.month];
+        monthLabel.textContent = isNewMonth || index === 0 ? monthsShort[rowData.month] : '';
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
