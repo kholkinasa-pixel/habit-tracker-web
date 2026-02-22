@@ -20,6 +20,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import BOT_TOKEN, WEBAPP_URL, API_HOST, API_PORT, BACKEND_PUBLIC_URL
 from database import (
     init_db,
+    close_db,
     add_habit,
     get_habit_by_id,
     get_habits,
@@ -250,7 +251,10 @@ async def main() -> None:
     logger.info("Планировщик запущен. Напоминания будут отправляться каждый день в 21:00 по МСК")
     
     logger.info("Бот запущен")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await close_db()
 
 
 if __name__ == "__main__":

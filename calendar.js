@@ -289,4 +289,46 @@ function renderCalendar() {
 
         const cellsRow = document.createElement('div');
         cellsRow.className = 'cells-row';
-        rowData.days.forEach(
+        rowData.days.forEach((day) => {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (day === null) {
+                cell.classList.add('empty');
+            } else if (day.isFuture) {
+                cell.classList.add('blocked');
+                cell.textContent = day.dayNum;
+            } else {
+                cell.classList.add('status-' + (day.status || 'no-data'));
+                if (day.isToday) cell.classList.add('today');
+                if (day.isToday) cell.textContent = day.dayNum;
+            }
+            cellsRow.appendChild(cell);
+        });
+        weekContent.appendChild(cellsRow);
+        row.appendChild(weekContent);
+
+        grid.appendChild(row);
+    });
+
+    container.appendChild(grid);
+}
+
+document.getElementById('habit-title-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+});
+
+document.addEventListener('click', () => closeDropdown());
+
+document.getElementById('habit-dropdown').addEventListener('click', (e) => e.stopPropagation());
+
+async function init() {
+    habitTexts = await loadHabits();
+    if (habitTexts.length) {
+        selectedHabitId = habitTexts[0].id;
+    }
+    renderHabitSwitcher();
+    await loadCalendarData(selectedHabitId);
+}
+
+init();

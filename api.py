@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import init_db, get_daily_logs_for_user, get_daily_logs_for_habit, get_habits
+from database import init_db, close_db, get_daily_logs_for_user, get_daily_logs_for_habit, get_habits
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ LEVEL_TO_CALENDAR = {
 async def lifespan(app: FastAPI):
     await init_db()
     yield
-    # shutdown if needed
+    await close_db()
 
 
 app = FastAPI(title="Habit Tracker API", lifespan=lifespan)

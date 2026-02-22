@@ -1,137 +1,137 @@
-import aiosqlite
+"""
+Модуль работы с PostgreSQL (Supabase) через asyncpg.
+Использует пул соединений, совместим с Railway.
+"""
+import asyncio
 import logging
 from datetime import date
 from typing import Optional, List, Tuple
 
+import asyncpg
+
+from config import DATABASE_URL
+
 logger = logging.getLogger(__name__)
 
-DB_PATH = "habits.db"
+# Константы лимитов
 DEFAULT_MAX_HABITS = 2
 EXTENDED_MAX_HABITS = 5
 
+# Пул соединений: один на каждый event loop (main и api могут работать в разных циклах)
+_pools: dict[asyncio.AbstractEventLoop, asyncpg.Pool] = {}
+
+
+def _get_pool() -> asyncpg.Pool:
+    """Возвращает пул для текущего event loop. Вызывать только после init_db()."""
+    loop = asyncio.get_running_loop()
+    pool = _pools.get(loop)
+    if pool is None:
+        raise RuntimeError(
+            "База данных не инициализирована. Вызовите init_db() перед работой с БД."
+        )
+    return pool
+
 
 async def init_db() -> None:
-    """Инициализация базы данных, миграции и создание таблиц"""
-    async with aiosqlite.connect(DB_PATH) as db:
+    """
+    Инициализация пула соединений и создание таблиц в PostgreSQL.
+    Вызывать при старте приложения (main.py и api lifespan).
+    """
+    loop = asyncio.get_running_loop()
+    if loop in _pools:
+        # Пул уже создан для этого event loop
+        return
+
+    # Supabase требует SSL; если в URL нет sslmode, добавляем
+    db_url = DATABASE_URL
+    if "sslmode" not in db_url and "postgres" in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}sslmode=require"
+
+    pool = await asyncpg.create_pool(
+        db_url,
+        min_size=1,
+        max_size=10,
+        command_timeout=60,
+    )
+    _pools[loop] = pool
+    logger.info("Пул соединений PostgreSQL создан")
+
+    async with pool.acquire() as conn:
         # 1. Таблица users (лимит привычек на пользователя)
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
+                user_id BIGINT PRIMARY KEY,
                 max_habits INTEGER NOT NULL DEFAULT 2
             )
         """)
 
-        # 2. Проверяем нужна ли миграция habits (старая схема с UNIQUE(user_id))
-        cursor = await db.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='habits'"
-        )
-        row = await cursor.fetchone()
-        if row:
-            sql = row[0] or ""
-            if "UNIQUE(user_id)" in sql or "UNIQUE (user_id)" in sql:
-                # Миграция: пересоздаём habits без UNIQUE(user_id)
-                await db.execute("""
-                    CREATE TABLE habits_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER NOT NULL,
-                        habit_text TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-                await db.execute(
-                    "INSERT INTO habits_new (id, user_id, habit_text, created_at) "
-                    "SELECT id, user_id, habit_text, created_at FROM habits"
-                )
-                await db.execute("DROP TABLE habits")
-                await db.execute("ALTER TABLE habits_new RENAME TO habits")
-                # Заполняем users из habits
-                await db.execute(
-                    "INSERT OR IGNORE INTO users (user_id, max_habits) "
-                    "SELECT user_id, 2 FROM habits"
-                )
-                logger.info("Миграция habits выполнена")
-        else:
-            # Новая установка — создаём habits
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS habits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER NOT NULL,
-                    habit_text TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # 2. Таблица habits
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS habits (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                habit_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-        # 3. Проверяем нужна ли миграция daily_logs (старая схема без habit_id)
-        cursor = await db.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_logs'"
-        )
-        row = await cursor.fetchone()
-        if row:
-            sql = row[0] or ""
-            if "habit_id" not in sql:
-                # Миграция: пересоздаём daily_logs с habit_id
-                await db.execute("""
-                    CREATE TABLE daily_logs_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        habit_id INTEGER NOT NULL,
-                        log_date DATE NOT NULL,
-                        efficiency_level TEXT NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE(habit_id, log_date)
-                    )
-                """)
-                await db.execute("""
-                    INSERT INTO daily_logs_new (habit_id, log_date, efficiency_level, created_at)
-                    SELECT (SELECT id FROM habits WHERE user_id = daily_logs.user_id LIMIT 1),
-                           log_date, efficiency_level, created_at
-                    FROM daily_logs
-                """)
-                await db.execute("DROP TABLE daily_logs")
-                await db.execute("ALTER TABLE daily_logs_new RENAME TO daily_logs")
-                logger.info("Миграция daily_logs выполнена")
-        else:
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS daily_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    habit_id INTEGER NOT NULL,
-                    log_date DATE NOT NULL,
-                    efficiency_level TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(habit_id, log_date)
-                )
-            """)
+        # 3. Таблица daily_logs
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_logs (
+                id SERIAL PRIMARY KEY,
+                habit_id INTEGER NOT NULL,
+                log_date DATE NOT NULL,
+                efficiency_level TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(habit_id, log_date)
+            )
+        """)
 
-        await db.commit()
-        logger.info("База данных инициализирована")
+    logger.info("База данных PostgreSQL инициализирована")
+
+
+async def close_db() -> None:
+    """Закрытие пула соединений. Вызывать при завершении приложения."""
+    loop = asyncio.get_running_loop()
+    pool = _pools.pop(loop, None)
+    if pool:
+        await pool.close()
+        logger.info("Пул соединений PostgreSQL закрыт")
 
 
 async def get_user_max_habits(user_id: int) -> int:
     """Возвращает max_habits для пользователя (2 или 5). Создаёт запись при первом обращении."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT max_habits FROM users WHERE user_id = ?",
-            (user_id,)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT max_habits FROM users WHERE user_id = $1",
+            user_id,
         )
-        row = await cursor.fetchone()
         if row:
-            return row[0]
-        await db.execute(
-            "INSERT OR IGNORE INTO users (user_id, max_habits) VALUES (?, ?)",
-            (user_id, DEFAULT_MAX_HABITS)
+            return row["max_habits"]
+
+        # ON CONFLICT DO NOTHING — аналог INSERT OR IGNORE в SQLite
+        await conn.execute(
+            """
+            INSERT INTO users (user_id, max_habits) VALUES ($1, $2)
+            ON CONFLICT (user_id) DO NOTHING
+            """,
+            user_id,
+            DEFAULT_MAX_HABITS,
         )
-        await db.commit()
         return DEFAULT_MAX_HABITS
 
 
 async def get_habits_count(user_id: int) -> int:
     """Количество привычек пользователя"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM habits WHERE user_id = ?",
-            (user_id,)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) AS cnt FROM habits WHERE user_id = $1",
+            user_id,
         )
-        row = await cursor.fetchone()
-        return row[0] if row else 0
+        return row["cnt"] if row else 0
 
 
 async def add_habit(user_id: int, habit_text: str) -> Tuple[bool, Optional[str]]:
@@ -144,44 +144,47 @@ async def add_habit(user_id: int, habit_text: str) -> Tuple[bool, Optional[str]]
     if count >= max_habits:
         return False, f"У тебя максимум {max_habits} привычек. Чтобы добавить ещё, свяжись с администратором."
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO habits (user_id, habit_text) VALUES (?, ?)",
-            (user_id, habit_text)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO habits (user_id, habit_text) VALUES ($1, $2)",
+            user_id,
+            habit_text,
         )
-        await db.commit()
-        logger.info(f"Привычка создана для пользователя {user_id}: {habit_text}")
-        return True, None
+    logger.info(f"Привычка создана для пользователя {user_id}: {habit_text}")
+    return True, None
 
 
 async def get_habits(user_id: int) -> List[Tuple[int, str]]:
     """Возвращает [(habit_id, habit_text), ...]"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT id, habit_text FROM habits WHERE user_id = ? ORDER BY id",
-            (user_id,)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, habit_text FROM habits WHERE user_id = $1 ORDER BY id",
+            user_id,
         )
-        return await cursor.fetchall()
+        return [(r["id"], r["habit_text"]) for r in rows]
 
 
 async def get_habit_by_id(habit_id: int) -> Optional[str]:
     """Текст привычки по id"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT habit_text FROM habits WHERE id = ?",
-            (habit_id,)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT habit_text FROM habits WHERE id = $1",
+            habit_id,
         )
-        row = await cursor.fetchone()
-        return row[0] if row else None
+        return row["habit_text"] if row else None
 
 
 async def get_all_users_with_habits() -> List[Tuple[int, int, str]]:
     """Возвращает (user_id, habit_id, habit_text) для каждой привычки"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
             "SELECT user_id, id, habit_text FROM habits ORDER BY user_id, id"
         )
-        return await cursor.fetchall()
+        return [(r["user_id"], r["id"], r["habit_text"]) for r in rows]
 
 
 async def get_daily_logs_for_user(user_id: int) -> List[Tuple[str, str]]:
@@ -189,21 +192,31 @@ async def get_daily_logs_for_user(user_id: int) -> List[Tuple[str, str]]:
     Возвращает все ежедневные логи пользователя (агрегация по всем привычкам).
     При нескольких логах на одну дату берётся «лучший» уровень.
     """
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("""
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
             SELECT dl.log_date, dl.efficiency_level
             FROM daily_logs dl
             JOIN habits h ON h.id = dl.habit_id
-            WHERE h.user_id = ?
+            WHERE h.user_id = $1
             ORDER BY dl.log_date
-        """, (user_id,))
-        rows = await cursor.fetchall()
+        """, user_id)
+
     # Объединяем по дате — берём лучший уровень
-    level_rank = {"Хорошо потрудились": 3, "Хорошо": 3, "Да": 3,
-                  "Базовый минимум": 2, "Минимум": 2,
-                  "Нет": 1, "good": 3, "minimum": 2, "no-data": 1}
+    level_rank = {
+        "Хорошо потрудились": 3,
+        "Хорошо": 3,
+        "Да": 3,
+        "Базовый минимум": 2,
+        "Минимум": 2,
+        "Нет": 1,
+        "good": 3,
+        "minimum": 2,
+        "no-data": 1,
+    }
     by_date = {}
-    for log_date, eff in rows:
+    for r in rows:
+        log_date, eff = r["log_date"], r["efficiency_level"]
         key = str(log_date)[:10]
         rank = level_rank.get((eff or "").strip(), 1)
         if key not in by_date or rank > level_rank.get((by_date[key] or "").strip(), 1):
@@ -213,19 +226,20 @@ async def get_daily_logs_for_user(user_id: int) -> List[Tuple[str, str]]:
 
 async def get_daily_logs_for_habit(habit_id: int) -> List[Tuple[str, str]]:
     """Логи по конкретной привычке"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT log_date, efficiency_level FROM daily_logs WHERE habit_id = ? ORDER BY log_date",
-            (habit_id,)
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT log_date, efficiency_level FROM daily_logs WHERE habit_id = $1 ORDER BY log_date",
+            habit_id,
         )
-        return await cursor.fetchall()
+        return [(str(r["log_date"]), r["efficiency_level"]) for r in rows]
 
 
 async def save_daily_log(
     user_id: int,
     habit_id: int,
     efficiency_level: str,
-    log_date: Optional[date] = None
+    log_date: Optional[date] = None,
 ) -> bool:
     """
     Сохраняет ежедневный лог по привычке.
@@ -234,26 +248,35 @@ async def save_daily_log(
     if log_date is None:
         log_date = date.today()
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            "SELECT id FROM daily_logs WHERE habit_id = ? AND log_date = ?",
-            (habit_id, log_date.isoformat())
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT id FROM daily_logs WHERE habit_id = $1 AND log_date = $2",
+            habit_id,
+            log_date,
         )
-        existing = await cursor.fetchone()
         if existing:
-            await db.execute(
-                "UPDATE daily_logs SET efficiency_level = ?, created_at = CURRENT_TIMESTAMP "
-                "WHERE habit_id = ? AND log_date = ?",
-                (efficiency_level, habit_id, log_date.isoformat())
+            await conn.execute(
+                """
+                UPDATE daily_logs
+                SET efficiency_level = $1, created_at = CURRENT_TIMESTAMP
+                WHERE habit_id = $2 AND log_date = $3
+                """,
+                efficiency_level,
+                habit_id,
+                log_date,
             )
-            await db.commit()
             logger.info(f"Лог обновлен для habit_id={habit_id} на дату {log_date}")
             return False
         else:
-            await db.execute(
-                "INSERT INTO daily_logs (habit_id, log_date, efficiency_level) VALUES (?, ?, ?)",
-                (habit_id, log_date.isoformat(), efficiency_level)
+            await conn.execute(
+                """
+                INSERT INTO daily_logs (habit_id, log_date, efficiency_level)
+                VALUES ($1, $2, $3)
+                """,
+                habit_id,
+                log_date,
+                efficiency_level,
             )
-            await db.commit()
             logger.info(f"Лог сохранен для habit_id={habit_id} на дату {log_date}")
             return True
