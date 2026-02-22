@@ -4,6 +4,7 @@
 """
 import asyncio
 import logging
+import ssl
 from datetime import date
 from typing import Optional, List, Tuple
 from urllib.parse import urlparse, unquote
@@ -91,11 +92,17 @@ async def init_db() -> None:
     # Парсим URL на компоненты — избегаем ошибки при пароле с ':' и др.
     params = _parse_database_url(DATABASE_URL)
 
-    # Supabase требует SSL (sslmode=require)
+    # Supabase требует SSL; для pooler отключаем проверку hostname (TargetServerAttributeNotMatched)
     options = params["options"] or ""
     if "sslmode" not in options.lower():
         options = f"{options}&sslmode=require" if options else "sslmode=require"
     use_ssl = "require" in options.lower() or "verify" in options.lower() or params["host"] != "localhost"
+
+    ssl_ctx = None
+    if use_ssl:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False  # Supabase pooler: сертификат может не совпадать с host
+        ssl_ctx.verify_mode = ssl.CERT_REQUIRED  # Проверяем цепочку сертификатов
 
     pool = await asyncpg.create_pool(
         host=params["host"],
@@ -103,7 +110,7 @@ async def init_db() -> None:
         user=params["user"],
         password=params["password"],
         database=params["database"],
-        ssl=use_ssl,
+        ssl=ssl_ctx if use_ssl else False,
         min_size=1,
         max_size=10,
         command_timeout=60,
