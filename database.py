@@ -112,6 +112,7 @@ async def init_db() -> None:
         password=params["password"],
         database=params["database"],
         ssl=ssl_ctx if use_ssl else False,
+        target_session_attrs="any",  # Supabase pooler: избегаем TargetServerAttributeNotMatched
         min_size=1,
         max_size=10,
         command_timeout=60,
