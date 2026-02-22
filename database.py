@@ -100,9 +100,10 @@ async def init_db() -> None:
 
     ssl_ctx = None
     if use_ssl:
+        # Supabase pooler: TargetServerAttributeNotMatched — отключаем проверку сертификата
         ssl_ctx = ssl.create_default_context()
-        ssl_ctx.check_hostname = False  # Supabase pooler: сертификат может не совпадать с host
-        ssl_ctx.verify_mode = ssl.CERT_REQUIRED  # Проверяем цепочку сертификатов
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
 
     pool = await asyncpg.create_pool(
         host=params["host"],
