@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import date
 from typing import Optional, List, Tuple
+from urllib.parse import urlparse, unquote
 
 import asyncpg
 
@@ -19,6 +20,51 @@ EXTENDED_MAX_HABITS = 5
 
 # Пул соединений: один на каждый event loop (main и api могут работать в разных циклах)
 _pools: dict[asyncio.AbstractEventLoop, asyncpg.Pool] = {}
+
+
+def _parse_database_url(url: str) -> dict:
+    """
+    Парсит DATABASE_URL на отдельные параметры.
+    Избегает ошибки asyncpg при пароле с символами :, @ и т.д.
+    """
+    parsed = urlparse(url)
+
+    user, password = None, None
+    host, port = "localhost", 5432
+
+    if parsed.netloc and "@" in parsed.netloc:
+        userinfo, hostport = parsed.netloc.rsplit("@", 1)
+        # user:password — только первый ':' разделяет (пароль может содержать : )
+        if ":" in userinfo:
+            user, password = userinfo.split(":", 1)
+            user, password = unquote(user), unquote(password)
+        else:
+            user = unquote(userinfo) if userinfo else None
+        # host:port
+        if ":" in hostport:
+            host, port_str = hostport.rsplit(":", 1)
+            port = int(port_str) if port_str.isdigit() else 5432
+        else:
+            host = hostport
+    elif parsed.netloc:
+        hostport = parsed.netloc
+        if ":" in hostport:
+            host, port_str = hostport.rsplit(":", 1)
+            port = int(port_str) if port_str.isdigit() else 5432
+        else:
+            host = hostport
+
+    database = (parsed.path or "/postgres").lstrip("/").split("?")[0] or "postgres"
+    options = parsed.query or ""
+
+    return {
+        "host": host,
+        "port": port,
+        "user": user,
+        "password": password,
+        "database": database,
+        "options": options,
+    }
 
 
 def _get_pool() -> asyncpg.Pool:
@@ -42,14 +88,22 @@ async def init_db() -> None:
         # Пул уже создан для этого event loop
         return
 
-    # Supabase требует SSL; если в URL нет sslmode, добавляем
-    db_url = DATABASE_URL
-    if "sslmode" not in db_url and "postgres" in db_url:
-        sep = "&" if "?" in db_url else "?"
-        db_url = f"{db_url}{sep}sslmode=require"
+    # Парсим URL на компоненты — избегаем ошибки при пароле с ':' и др.
+    params = _parse_database_url(DATABASE_URL)
+
+    # Supabase требует SSL (sslmode=require)
+    options = params["options"] or ""
+    if "sslmode" not in options.lower():
+        options = f"{options}&sslmode=require" if options else "sslmode=require"
+    use_ssl = "require" in options.lower() or "verify" in options.lower() or params["host"] != "localhost"
 
     pool = await asyncpg.create_pool(
-        db_url,
+        host=params["host"],
+        port=params["port"],
+        user=params["user"],
+        password=params["password"],
+        database=params["database"],
+        ssl=use_ssl,
         min_size=1,
         max_size=10,
         command_timeout=60,

@@ -30,7 +30,7 @@ from database import (
 
 # В Python 3.9+ с uvloop в главном потоке ещё нет event loop — создаём его до aiogram
 try:
-    asyncio.get_event_loop()
+    asyncio.get_running_loop()
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
