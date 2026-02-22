@@ -41,14 +41,15 @@ def _parse_database_url(url: str) -> dict:
             user, password = unquote(user), unquote(password)
         else:
             user = unquote(userinfo) if userinfo else None
-        # host:port
-        if ":" in hostport:
-            host, port_str = hostport.rsplit(":", 1)
+        # host:port (или host1:port1,host2:port2 — берём первый хост)
+        hostport_part = hostport.split(",")[0]
+        if ":" in hostport_part:
+            host, port_str = hostport_part.rsplit(":", 1)
             port = int(port_str) if port_str.isdigit() else 5432
         else:
-            host = hostport
+            host = hostport_part
     elif parsed.netloc:
-        hostport = parsed.netloc
+        hostport = parsed.netloc.split(",")[0]
         if ":" in hostport:
             host, port_str = hostport.rsplit(":", 1)
             port = int(port_str) if port_str.isdigit() else 5432
@@ -57,6 +58,11 @@ def _parse_database_url(url: str) -> dict:
 
     database = (parsed.path or "/postgres").lstrip("/").split("?")[0] or "postgres"
     options = parsed.query or ""
+
+    # Убираем пробелы и лишние символы (могут попасть при копировании)
+    host = (host or "").strip()
+    if not host:
+        host = "localhost"
 
     return {
         "host": host,
@@ -105,18 +111,32 @@ async def init_db() -> None:
         ssl_ctx.check_hostname = False
         ssl_ctx.verify_mode = ssl.CERT_NONE
 
-    pool = await asyncpg.create_pool(
-        host=params["host"],
-        port=params["port"],
-        user=params["user"],
-        password=params["password"],
-        database=params["database"],
-        ssl=ssl_ctx if use_ssl else False,
-        target_session_attrs="any",  # Supabase pooler: избегаем TargetServerAttributeNotMatched
-        min_size=1,
-        max_size=10,
-        command_timeout=60,
-    )
+    host, port, user, db_name = params["host"], params["port"], params["user"], params["database"]
+    logger.info("Подключение к PostgreSQL: host=%s, port=%s, database=%s", host, port, db_name)
+
+    try:
+        pool = await asyncpg.create_pool(
+            host=host,
+            port=port,
+            user=user,
+            password=params["password"],
+            database=db_name,
+            ssl=ssl_ctx if use_ssl else False,
+            target_session_attrs="any",  # Supabase pooler: избегаем TargetServerAttributeNotMatched
+            min_size=1,
+            max_size=10,
+            command_timeout=60,
+        )
+    except Exception as e:
+        logger.error(
+            "Ошибка подключения к PostgreSQL (host=%s, port=%s). "
+            "Проверьте DATABASE_URL и доступность хоста. Ошибка: %s",
+            host, port, e,
+        )
+        raise RuntimeError(
+            f"Не удалось подключиться к PostgreSQL (host={host}, port={port}). "
+            "Проверьте переменную DATABASE_URL в Railway и что проект Supabase не приостановлен."
+        ) from e
     _pools[loop] = pool
     logger.info("Пул соединений PostgreSQL создан")
 
