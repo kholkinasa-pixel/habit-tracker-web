@@ -30,8 +30,6 @@ function getUserId() {
 
 const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
     'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
-const monthsPrepositional = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне',
-    'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
 
 let dayData = {};
 let habitTexts = [];
@@ -291,20 +289,6 @@ function renderCalendar() {
             spacer.className = 'month-spacer';
             spacer.setAttribute('aria-hidden', 'true');
             grid.appendChild(spacer);
-            // Статистика за прошедший месяц — над календарём месяца, не показывать для текущего
-            const firstDay = rowData.days.find(d => d !== null);
-            if (firstDay) {
-                const rowYear = firstDay.date.getFullYear();
-                const rowMonth = rowData.month;
-                const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
-                if (!isCurrentMonth && rowYear <= today.getFullYear() && (rowYear < today.getFullYear() || rowMonth < today.getMonth())) {
-                    const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
-                    const statsEl = document.createElement('div');
-                    statsEl.className = 'month-stats';
-                    statsEl.textContent = `Активных дней в ${monthsPrepositional[rowMonth]}: ${activeDays} из ${totalDays}`;
-                    grid.appendChild(statsEl);
-                }
-            }
         }
 
         const row = document.createElement('div');
@@ -313,7 +297,21 @@ function renderCalendar() {
         const monthLabel = document.createElement('div');
         monthLabel.className = 'month-label';
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
-        monthLabel.textContent = isLastRowOfMonth ? monthsShort[rowData.month] : '';
+        if (isLastRowOfMonth) {
+            const firstDay = rowData.days.find(d => d !== null);
+            const rowYear = firstDay ? firstDay.date.getFullYear() : 0;
+            const rowMonth = rowData.month;
+            const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
+            const isPastMonth = rowYear < today.getFullYear() || (rowYear === today.getFullYear() && rowMonth < today.getMonth());
+            let label = monthsShort[rowData.month];
+            if (isPastMonth && firstDay) {
+                const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+                label += ' ' + activeDays + '/' + totalDays;
+            }
+            monthLabel.textContent = label;
+        } else {
+            monthLabel.textContent = '';
+        }
         row.appendChild(monthLabel);
 
         const weekContent = document.createElement('div');
