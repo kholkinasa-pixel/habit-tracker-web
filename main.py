@@ -60,6 +60,15 @@ def _webapp_url(user_id=None) -> str:
     return base
 
 
+def _habit_added_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    """Inline-клавиатура после успешного добавления привычки: кнопка календаря."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📅 Посмотреть календарь", web_app=WebAppInfo(url=_webapp_url(user_id)))]
+        ]
+    )
+
+
 def get_bot_menu(user_id: int) -> ReplyKeyboardMarkup:
     """Меню с URL, содержащим user_id (initData при Reply Keyboard web_app часто пустой)."""
     return ReplyKeyboardMarkup(
@@ -211,9 +220,9 @@ async def cmd_set_habit(message: Message, state: FSMContext) -> None:
     success, err_msg = await add_habit(user_id, habit_text)
     if success:
         await message.answer(
-            f"✅ Привычка «{habit_text}» добавлена!\n"
-            f"Я буду спрашивать о ней каждый день в 21:00.",
-            reply_markup=get_bot_menu(user_id),
+            f"✅ Привычка «{habit_text}» добавлена!\n\n"
+            f"Я буду напоминать вам о ней каждый день в 21:00 по Москве 🌙",
+            reply_markup=_habit_added_keyboard(user_id),
         )
     else:
         await message.answer(err_msg or "Не удалось добавить привычку.")
@@ -243,9 +252,9 @@ async def process_add_habit_name(message: Message, state: FSMContext) -> None:
 
     if success:
         await message.answer(
-            f"✅ Привычка «{habit_text}» добавлена!\n"
-            f"Я буду спрашивать о ней каждый день в 21:00.",
-            reply_markup=get_bot_menu(user_id),
+            f"✅ Привычка «{habit_text}» добавлена!\n\n"
+            f"Я буду напоминать вам о ней каждый день в 21:00 по Москве 🌙",
+            reply_markup=_habit_added_keyboard(user_id),
         )
     else:
         await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
