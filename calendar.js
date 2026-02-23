@@ -30,6 +30,8 @@ function getUserId() {
 
 const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
     'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
+const monthsPrepositional = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне',
+    'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
 
 let dayData = {};
 let habitTexts = [];
@@ -170,6 +172,22 @@ function renderHabitSwitcher() {
     });
 }
 
+/** Активный день — любой день с логом (minimum или good). */
+function isActiveDay(status) {
+    return status === 'minimum' || status === 'good';
+}
+
+/** Статистика за месяц: { activeDays, totalDays }. Только для прошедших месяцев. */
+function getMonthlyStats(year, month) {
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    let activeDays = 0;
+    for (let d = 1; d <= totalDays; d++) {
+        const status = getDayData(year, month, d);
+        if (isActiveDay(status)) activeDays++;
+    }
+    return { activeDays, totalDays };
+}
+
 /** Понедельник = первый день недели. Возвращает понедельник для даты d. */
 function getMonday(d) {
     const date = new Date(d);
@@ -273,6 +291,20 @@ function renderCalendar() {
             spacer.className = 'month-spacer';
             spacer.setAttribute('aria-hidden', 'true');
             grid.appendChild(spacer);
+            // Статистика за прошедший месяц — над календарём месяца, не показывать для текущего
+            const firstDay = rowData.days.find(d => d !== null);
+            if (firstDay) {
+                const rowYear = firstDay.date.getFullYear();
+                const rowMonth = rowData.month;
+                const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
+                if (!isCurrentMonth && rowYear <= today.getFullYear() && (rowYear < today.getFullYear() || rowMonth < today.getMonth())) {
+                    const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+                    const statsEl = document.createElement('div');
+                    statsEl.className = 'month-stats';
+                    statsEl.textContent = `Активных дней в ${monthsPrepositional[rowMonth]}: ${activeDays} из ${totalDays}`;
+                    grid.appendChild(statsEl);
+                }
+            }
         }
 
         const row = document.createElement('div');
