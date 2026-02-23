@@ -1,7 +1,11 @@
 import asyncio
 import logging
 import threading
+from datetime import datetime
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
+
+from texts import REMINDER_TEXTS
 
 import uvicorn
 from aiogram import Bot, Dispatcher, F
@@ -75,11 +79,19 @@ def get_bot_menu(user_id: int) -> ReplyKeyboardMarkup:
         is_persistent=True,
     )
 
+def _weekday_moscow() -> int:
+    """День недели по Москве (0=Monday, 6=Sunday)."""
+    return datetime.now(ZoneInfo("Europe/Moscow")).weekday()
+
+
 async def send_daily_reminder():
     """Отправляет ежедневное напоминание всем пользователям с привычками"""
     try:
         rows = await get_all_users_with_habits()
         logger.info(f"Отправка напоминаний. Найдено привычек: {len(rows)}")
+
+        weekday = _weekday_moscow()
+        text_template = REMINDER_TEXTS[weekday]["reminder"]
 
         for user_id, habit_id, habit_text in rows:
             try:
@@ -93,9 +105,10 @@ async def send_daily_reminder():
                     ]
                 ])
 
+                text = text_template.format(habit_name=habit_text)
                 await bot.send_message(
                     chat_id=user_id,
-                    text=f"📅 Ежедневная проверка привычки!\n\n📝 Твоя привычка: {habit_text}\n\nКак дела сегодня?",
+                    text=text,
                     reply_markup=keyboard
                 )
                 logger.info(f"Напоминание отправлено пользователю {user_id} (habit_id={habit_id})")
@@ -126,14 +139,17 @@ async def handle_habit_callback(callback: CallbackQuery):
         response = "Нет"
         efficiency_level = "Нет"
         emoji = "❌"
+        status_key = "fail"
     elif data.startswith("habit_min_"):
         response = "Базовый минимум"
         efficiency_level = "Базовый минимум"
         emoji = "⚡"
+        status_key = "partial"
     elif data.startswith("habit_good_"):
         response = "Хорошо потрудились"
         efficiency_level = "Хорошо потрудились"
         emoji = "🌟"
+        status_key = "success"
     else:
         await callback.answer("Неизвестная команда")
         return
@@ -148,12 +164,9 @@ async def handle_habit_callback(callback: CallbackQuery):
 
     habit_text = await get_habit_by_id(habit_id)
     if habit_text:
-        await callback.message.edit_text(
-            f"📅 Ежедневная проверка привычки!\n\n"
-            f"📝 Твоя привычка: {habit_text}\n\n"
-            f"{emoji} Твой ответ: {response}\n\n"
-            f"Спасибо за ответ! До завтра! 👋"
-        )
+        weekday = _weekday_moscow()
+        response_text = REMINDER_TEXTS[weekday][status_key].format(habit_name=habit_text)
+        await callback.message.edit_text(response_text)
 
 
 @dp.message(Command("start"))
