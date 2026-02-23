@@ -402,4 +402,56 @@ async def save_daily_log(
         if existing:
             logger.info(f"Лог уже существует для habit_id={habit_id} на дату {log_date}")
             return False, True
-   
+        await conn.execute(
+            """
+            INSERT INTO daily_logs (habit_id, log_date, efficiency_level)
+            VALUES ($1, $2, $3)
+            """,
+            habit_id,
+            log_date,
+            efficiency_level,
+        )
+        logger.info(f"Лог сохранен для habit_id={habit_id} на дату {log_date}")
+        return True, False
+
+
+async def get_unmarked_habits_for_reminder(log_date: date) -> List[Tuple[int, int, str]]:
+    """
+    Возвращает (user_id, habit_id, habit_text) для привычек без записи в daily_logs на дату.
+    Используется для отправки напоминаний только по неотмеченным привычкам.
+    """
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT h.user_id, h.id, h.habit_text
+            FROM habits h
+            LEFT JOIN daily_logs dl ON dl.habit_id = h.id AND dl.log_date = $1
+            WHERE dl.id IS NULL
+            ORDER BY h.user_id, h.id
+            """,
+            log_date,
+        )
+        return [(r["user_id"], r["id"], r["habit_text"]) for r in rows]
+
+
+async def delete_habit(habit_id: int, user_id: int) -> Tuple[bool, Optional[str]]:
+    """
+    Удаляет привычку и все связанные записи из daily_logs.
+    Проверяет, что habit_id принадлежит user_id.
+    Возвращает (успех, сообщение_об_ошибке).
+    """
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM habits WHERE id = $1 AND user_id = $2",
+            habit_id,
+            user_id,
+        )
+        if not row:
+            return False, "Привычка не найдена или не принадлежит тебе."
+
+        await conn.execute("DELETE FROM daily_logs WHERE habit_id = $1", habit_id)
+        await conn.execute("DELETE FROM habits WHERE id = $1 AND user_id = $2", habit_id, user_id)
+        logger.info(f"Привычка {habit_id} удалена пользователем {user_id}")
+    return True, None
