@@ -191,6 +191,23 @@ function computeStreaks() {
 
     activeDates.sort();
 
+    if (dayData[todayKey] === 'no-data') {
+        let longest = 1;
+        let run = 1;
+        for (let i = 1; i < activeDates.length; i++) {
+            const prev = new Date(activeDates[i - 1]);
+            const curr = new Date(activeDates[i]);
+            const diffDays = Math.round((curr - prev) / (24 * 60 * 60 * 1000));
+            if (diffDays === 1) {
+                run++;
+                longest = Math.max(longest, run);
+            } else {
+                run = 1;
+            }
+        }
+        return { current: 0, longest };
+    }
+
     let current = 0;
     let startDate = new Date(today);
     if (!isActiveDay(dayData[todayKey])) {

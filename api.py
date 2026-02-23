@@ -112,28 +112,4 @@ async def get_calendar(user_id: int, habit_id: Optional[int] = None) -> dict[str
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Ошибка при получении логов для user_id=%s", user_id)
-        raise HTTPException(status_code=500, detail="Database error") from e
-    result = {}
-    for log_date, efficiency_level in logs:
-        key = str(log_date)[:10]  # YYYY-MM-DD
-        val = (efficiency_level or "").strip()
-        result[key] = LEVEL_TO_CALENDAR.get(val, "no-data")
-    return result
-
-
-@app.get("/api/users/{user_id}/habit")
-async def get_user_habit(user_id: int):
-    """Список привычек пользователя."""
-    habits = await get_habits(user_id)
-    if not habits:
-        raise HTTPException(status_code=404, detail="Habits not set")
-    return {
-        "user_id": user_id,
-        "habits": [{"id": h[0], "text": h[1]} for h in habits],
-    }
-
-
-@app.get("/api/health")
-async def health():
-    return {"status": "ok"}
+        logger.exception("Ошибка при получен�
