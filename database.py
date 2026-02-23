@@ -381,4 +381,32 @@ async def save_daily_log(
     pool = _get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
-            "SELECT id FROM daily_logs WHERE 
+            """SELECT id FROM daily_logs WHERE habit_id = $1 AND log_date = $2""",
+            habit_id,
+            log_date,
+        )
+        if existing:
+            await conn.execute(
+                """
+                UPDATE daily_logs
+                SET efficiency_level = $1, created_at = CURRENT_TIMESTAMP
+                WHERE habit_id = $2 AND log_date = $3
+                """,
+                efficiency_level,
+                habit_id,
+                log_date,
+            )
+            logger.info(f"Лог обновлен для habit_id={habit_id} на дату {log_date}")
+            return False
+        else:
+            await conn.execute(
+                """
+                INSERT INTO daily_logs (habit_id, log_date, efficiency_level)
+                VALUES ($1, $2, $3)
+                """,
+                habit_id,
+                log_date,
+                efficiency_level,
+            )
+            logger.info(f"Лог сохранен для habit_id={habit_id} на дату {log_date}")
+            return True
