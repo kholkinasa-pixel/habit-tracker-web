@@ -400,16 +400,20 @@ async def handle_settings_list(callback: CallbackQuery) -> None:
     # Показать список привычек из настроек
     user_id = callback.from_user.id
     habits = await get_habits(user_id)
+    show_add_button = len(habits) < 2
     if not habits:
-        await callback.message.edit_text(
-            "У тебя пока нет привычек. Добавь первую кнопкой «➕ Добавить привычку» в настройках.",
-            reply_markup=None
-        )
+        text = "У тебя пока нет привычек."
     else:
         lines = [f"📝 Твои привычки ({len(habits)}):\n"]
         for i, (_, habit_text) in enumerate(habits, 1):
             lines.append(f"{i}. {habit_text}")
-        await callback.message.edit_text("\n".join(lines), reply_markup=None)
+        text = "\n".join(lines)
+    keyboard = None
+    if show_add_button:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Добавить привычку", callback_data="settings_add")]
+        ])
+    await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 
