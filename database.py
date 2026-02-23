@@ -181,11 +181,11 @@ async def init_db() -> None:
             )
         """)
 
-        # 3. Таблица daily_logs
+        # 3. Таблица daily_logs (UNIQUE habit_id+log_date, каскадное удаление при удалении привычки)
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_logs (
                 id SERIAL PRIMARY KEY,
-                habit_id INTEGER NOT NULL,
+                habit_id INTEGER NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
                 log_date DATE NOT NULL,
                 efficiency_level TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -365,15 +365,29 @@ async def get_daily_logs_for_habit(habit_id: int) -> List[Tuple[str, str]]:
         return [(str(r["log_date"]), r["efficiency_level"]) for r in rows]
 
 
+async def has_daily_log(habit_id: int, log_date: date) -> bool:
+    """Проверяет, есть ли запись в daily_logs по привычке на дату."""
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM daily_logs WHERE habit_id = $1 AND log_date = $2",
+            habit_id,
+            log_date,
+        )
+        return row is not None
+
+
 async def save_daily_log(
     user_id: int,
     habit_id: int,
     efficiency_level: str,
     log_date: Optional[date] = None,
-) -> bool:
+) -> Tuple[bool, bool]:
     """
-    Сохраняет ежедневный лог по привычке.
-    Возвращает True если лог создан, False если обновлён.
+    Сохраняет ежедневный лог по привычке (только если записи ещё нет).
+    Возвращает (создан: bool, уже_был: bool).
+    - (True, False): лог создан
+    - (False, True): запись уже существовала, не изменяем
     """
     if log_date is None:
         log_date = date.today()
@@ -381,32 +395,11 @@ async def save_daily_log(
     pool = _get_pool()
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
-            """SELECT id FROM daily_logs WHERE habit_id = $1 AND log_date = $2""",
+            "SELECT id FROM daily_logs WHERE habit_id = $1 AND log_date = $2",
             habit_id,
             log_date,
         )
         if existing:
-            await conn.execute(
-                """
-                UPDATE daily_logs
-                SET efficiency_level = $1, created_at = CURRENT_TIMESTAMP
-                WHERE habit_id = $2 AND log_date = $3
-                """,
-                efficiency_level,
-                habit_id,
-                log_date,
-            )
-            logger.info(f"Лог обновлен для habit_id={habit_id} на дату {log_date}")
-            return False
-        else:
-            await conn.execute(
-                """
-                INSERT INTO daily_logs (habit_id, log_date, efficiency_level)
-                VALUES ($1, $2, $3)
-                """,
-                habit_id,
-                log_date,
-                efficiency_level,
-            )
-            logger.info(f"Лог сохранен для habit_id={habit_id} на дату {log_date}")
-            return True
+            logger.info(f"Лог уже существует для habit_id={habit_id} на дату {log_date}")
+            return False, True
+   

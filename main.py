@@ -1,9 +1,20 @@
 import asyncio
 import logging
 import threading
-from datetime import datetime
+from datetime import date, datetime
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
+
+# Названия месяцев в родительном падеже для формата «23 февраля»
+MONTH_NAMES_RU = {
+    1: "января", 2: "февраля", 3: "марта", 4: "апреля", 5: "мая", 6: "июня",
+    7: "июля", 8: "августа", 9: "сентября", 10: "октября", 11: "ноября", 12: "декабря",
+}
+
+
+def format_date_ru(d: date) -> str:
+    """Форматирует дату как «23 февраля»."""
+    return f"{d.day} {MONTH_NAMES_RU[d.month]}"
 
 from texts import REMINDER_TEXTS
 
@@ -28,10 +39,11 @@ from database import (
     init_db,
     close_db,
     add_habit,
+    delete_habit,
     get_habit_by_id,
     get_habits,
     get_habits_count,
-    get_all_users_with_habits,
+    get_unmarked_habits_for_reminder,
     save_daily_log,
     update_habit_name,
 )
@@ -66,15 +78,14 @@ def _webapp_url(user_id=None) -> str:
 
 
 def get_bot_menu(user_id: int) -> ReplyKeyboardMarkup:
-    """Меню с URL, содержащим user_id (initData при Reply Keyboard web_app часто пустой)."""
+    """Главное меню: Мой прогресс, Отметить прогресс (с динамической датой), Настройки."""
+    today = date.today()
+    date_str = format_date_ru(today)
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="📅 Мой прогресс", web_app=WebAppInfo(url=_webapp_url(user_id)))],
-            [KeyboardButton(text="➕ Добавить привычку")],
-            [
-                KeyboardButton(text="📋 Список привычек"),
-                KeyboardButton(text="✏️ Редактировать привычку"),
-            ],
+            [KeyboardButton(text="📈 Мой прогресс", web_app=WebAppInfo(url=_webapp_url(user_id)))],
+            [KeyboardButton(text=f"✅ Отметить прогресс за {date_str}")],
+            [KeyboardButton(text="⚙️ Настройки")],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -86,10 +97,17 @@ def _weekday_moscow() -> int:
 
 
 async def send_daily_reminder():
-    """Отправляет ежедневное напоминание всем пользователям с привычками"""
+    """
+    Отправляет напоминания только по привычкам без записи в daily_logs на текущую дату.
+    Если все привычки уже отмечены — ничего не отправляет.
+    """
     try:
-        rows = await get_all_users_with_habits()
-        logger.info(f"Отправка напоминаний. Найдено привычек: {len(rows)}")
+        today = date.today()
+        rows = await get_unmarked_habits_for_reminder(today)
+        logger.info(f"Отправка напоминаний. Неотмеченных привычек: {len(rows)}")
+
+        if not rows:
+            return
 
         weekday = _weekday_moscow()
         text_template = REMINDER_TEXTS[weekday]["reminder"]
@@ -98,11 +116,11 @@ async def send_daily_reminder():
             try:
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Нет", callback_data=f"habit_no_{habit_id}"),
-                        InlineKeyboardButton(text="Базовый минимум", callback_data=f"habit_min_{habit_id}")
+                        InlineKeyboardButton(text="❌ Нет", callback_data=f"habit_no_{habit_id}"),
+                        InlineKeyboardButton(text="🟦 Базовый минимум", callback_data=f"habit_min_{habit_id}")
                     ],
                     [
-                        InlineKeyboardButton(text="Хорошо потрудились", callback_data=f"habit_good_{habit_id}")
+                        InlineKeyboardButton(text="🔷 Хорошо потрудились", callback_data=f"habit_good_{habit_id}")
                     ]
                 ])
 
@@ -119,6 +137,61 @@ async def send_daily_reminder():
         logger.error(f"Критическая ошибка в send_daily_reminder: {e}")
 
 
+# --- Кнопка «✅ Отметить прогресс за <дата>» ---
+
+@dp.message(F.text.startswith("✅ Отметить прогресс"))
+async def cmd_mark_progress(message: Message, state: FSMContext) -> None:
+    """Шаг 1: выбор привычки для отметки прогресса."""
+    await state.clear()
+    user_id = message.from_user.id
+    today = date.today()
+    date_str = format_date_ru(today)
+
+    habits = await get_habits(user_id)
+    if not habits:
+        await message.answer(
+            "У тебя пока нет привычек. Добавь первую в разделе «⚙️ Настройки»."
+        )
+        return
+
+    text = f"Выберите привычку, по которой хотите отметить прогресс за {date_str}"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=name, callback_data=f"mark_select_{hid}")]
+        for hid, name in habits
+    ])
+    await message.answer(text, reply_markup=keyboard)
+
+
+@dp.callback_query(F.data.startswith("mark_select_"))
+async def handle_mark_select_habit(callback: CallbackQuery) -> None:
+    """Шаг 2: после выбора привычки — выбор статуса (Нет / Базовый минимум / Хорошо потрудились)."""
+    user_id = callback.from_user.id
+    try:
+        habit_id = int(callback.data.split("_", 2)[2])
+    except (ValueError, IndexError):
+        await callback.answer("Ошибка")
+        return
+
+    habits = await get_habits(user_id)
+    habit_ids = {h[0] for h in habits}
+    if habit_id not in habit_ids:
+        await callback.answer("Эта привычка недоступна", show_alert=True)
+        return
+
+    habit_text = next((n for hid, n in habits if hid == habit_id), "")
+    text = f'Как прошёл день по привычке „{habit_text}"?'
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="❌ Нет", callback_data=f"habit_no_{habit_id}"),
+            InlineKeyboardButton(text="🟦 Базовый минимум", callback_data=f"habit_min_{habit_id}")
+        ],
+        [InlineKeyboardButton(text="🔷 Хорошо потрудились", callback_data=f"habit_good_{habit_id}")]
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.answer()
+
+
 @dp.callback_query(F.data == "onboarding_add_habit")
 async def handle_onboarding_add_habit(callback: CallbackQuery, state: FSMContext) -> None:
     """Онбординг: при нажатии «➕ Добавить привычку» — переход в FSM добавления привычки."""
@@ -129,11 +202,13 @@ async def handle_onboarding_add_habit(callback: CallbackQuery, state: FSMContext
 
 @dp.callback_query(F.data.startswith("habit_"))
 async def handle_habit_callback(callback: CallbackQuery):
-    """Обработчик нажатий на кнопки"""
+    """
+    Обработчик кнопок статуса (Нет / Базовый минимум / Хорошо потрудились).
+    Повторная отметка запрещена — если запись уже есть, показываем дружелюбное сообщение.
+    """
     data = callback.data
     user_id = callback.from_user.id
 
-    # Извлекаем habit_id и тип ответа из callback_data (habit_no_123, habit_min_123, habit_good_123)
     parts = data.split("_", 2)
     if len(parts) < 3:
         await callback.answer("Неизвестная команда")
@@ -145,37 +220,35 @@ async def handle_habit_callback(callback: CallbackQuery):
         return
 
     if data.startswith("habit_no_"):
-        response = "Нет"
         efficiency_level = "Нет"
-        emoji = "❌"
-        status_key = "fail"
     elif data.startswith("habit_min_"):
-        response = "Базовый минимум"
         efficiency_level = "Базовый минимум"
-        emoji = "⚡"
-        status_key = "partial"
     elif data.startswith("habit_good_"):
-        response = "Хорошо потрудились"
         efficiency_level = "Хорошо потрудились"
-        emoji = "🌟"
-        status_key = "success"
     else:
         await callback.answer("Неизвестная команда")
         return
 
     try:
-        await save_daily_log(user_id, habit_id, efficiency_level)
-        logger.info(f"Ответ пользователя {user_id} для habit_id={habit_id} сохранен: {efficiency_level}")
+        created, already = await save_daily_log(user_id, habit_id, efficiency_level)
     except Exception as e:
         logger.error(f"Ошибка при сохранении ответа пользователя {user_id}: {e}")
+        await callback.answer("Ошибка сохранения")
+        return
 
-    await callback.answer(f"{emoji} Записал: {response}")
+    if already:
+        await callback.answer("Уже отмечено")
+        await callback.message.edit_text(
+            "За сегодня эта привычка уже отмечена 💙",
+            reply_markup=None
+        )
+        return
 
-    habit_text = await get_habit_by_id(habit_id)
-    if habit_text:
-        weekday = _weekday_moscow()
-        response_text = REMINDER_TEXTS[weekday][status_key].format(habit_name=habit_text)
-        await callback.message.edit_text(response_text)
+    await callback.answer("Прогресс сохранён ✅")
+    await callback.message.edit_text(
+        "Прогресс сохранён ✅",
+        reply_markup=None
+    )
 
 
 ONBOARDING_TEXT = (
@@ -298,136 +371,51 @@ async def process_add_habit_name(message: Message, state: FSMContext) -> None:
         await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
 
 
-# --- FSM: Редактирование привычки ---
+# --- ⚙️ Настройки (главное меню) ---
 
-@dp.message(F.text.in_({"✏️ Редактировать привычку", "Редактировать привычку"}))
-async def cmd_menu_edit_habit(message: Message, state: FSMContext) -> None:
-    """Кнопка меню: показать список привычек для редактирования."""
-    user_id = message.from_user.id
-    habits = await get_habits(user_id)
-
-    if not habits:
-        await message.answer("У тебя пока нет привычек. Добавь первую кнопкой «➕ Добавить привычку».")
-        return
-
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=name, callback_data=f"edit_habit_{hid}")]
-            for hid, name in habits
-        ]
-    )
-    await message.answer("Выбери привычку для редактирования:", reply_markup=keyboard)
+@dp.message(F.text.in_({"⚙️ Настройки", "Настройки"}))
+async def cmd_settings(message: Message, state: FSMContext) -> None:
+    """Открывает меню настроек: Список, Добавить, Редактировать, Удалить привычку."""
+    await state.clear()
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Список привычек", callback_data="settings_list")],
+        [InlineKeyboardButton(text="✏️ Редактировать привычку", callback_data="settings_edit")],
+        [InlineKeyboardButton(text="🗑 Удалить привычку", callback_data="settings_delete")],
+    ])
+    await message.answer("⚙️ Настройки", reply_markup=keyboard)
 
 
-@dp.callback_query(F.data.startswith("edit_habit_"))
-async def handle_edit_habit_choice(callback: CallbackQuery, state: FSMContext) -> None:
-    """Выбор привычки из списка: переход в состояние ожидания нового названия."""
+@dp.callback_query(F.data == "settings_list")
+async def handle_settings_list(callback: CallbackQuery) -> None:
+    """Показать список привычек из настроек."""
     user_id = callback.from_user.id
-    try:
-        habit_id = int(callback.data.split("_", 2)[2])
-    except (ValueError, IndexError):
-        await callback.answer("Ошибка")
-        return
-
     habits = await get_habits(user_id)
-    habit_ids = {h[0] for h in habits}
-    if habit_id not in habit_ids:
-        await callback.answer("Эта привычка недоступна", show_alert=True)
-        return
-
-    old_name = next((n for hid, n in habits if hid == habit_id), "")
-    await state.update_data(habit_id=habit_id, old_name=old_name)
-    await state.set_state(EditingHabit.waiting_for_new_name)
-    await callback.message.edit_text(
-        f"Введите новое название для привычки «{old_name}»"
-    )
+    if not habits:
+        await callback.message.edit_text(
+            "У тебя пока нет привычек. Добавь первую через /start.",
+            reply_markup=None
+        )
+    else:
+        lines = [f"📝 Твои привычки ({len(habits)}):\n"]
+        for i, (_, habit_text) in enumerate(habits, 1):
+            lines.append(f"{i}. {habit_text}")
+        await callback.message.edit_text("\n".join(lines), reply_markup=None)
     await callback.answer()
 
 
-@dp.message(EditingHabit.waiting_for_new_name)
-async def process_edit_habit_name(message: Message, state: FSMContext) -> None:
-    """Обработка нового названия при редактировании привычки."""
-    user_id = message.from_user.id
-    new_name = (message.text or "").strip() if message.text else ""
-
-    if not new_name or len(new_name) < 2:
-        await message.answer("⚠️ Название должно быть не меньше 2 символов. Попробуй ещё раз.")
-        return
-
-    data = await state.get_data()
-    habit_id = data.get("habit_id")
-    await state.clear()
-
-    if habit_id is None:
-        await message.answer("Сессия истекла. Выбери привычку заново.", reply_markup=get_bot_menu(user_id))
-        return
-
-    success, err_msg = await update_habit_name(habit_id, user_id, new_name)
-    if success:
-        await message.answer("✅ Название обновлено", reply_markup=get_bot_menu(user_id))
-    else:
-        await message.answer(err_msg or "Не удалось обновить.", reply_markup=get_bot_menu(user_id))
-
-
-# --- Остальные кнопки меню ---
-
-@dp.message(F.text.in_({"📋 Список привычек", "Посмотреть список привычек"}))
-async def cmd_menu_list_habits(message: Message) -> None:
-    """Кнопка меню: показать список привычек пользователя"""
-    user_id = message.from_user.id
+@dp.callback_query(F.data == "settings_edit")
+async def handle_settings_edit(callback: CallbackQuery) -> None:
+    """Редактировать привычку — показать список."""
+    user_id = callback.from_user.id
     habits = await get_habits(user_id)
     if not habits:
-        await message.answer(
-            "У тебя пока нет привычек.\nИспользуй кнопку «➕ Добавить привычку» в меню."
+        await callback.message.edit_text(
+            "У тебя пока нет привычек. Добавь первую в настройках.",
+            reply_markup=None
         )
-        return
-    lines = [f"📝 Твои привычки ({len(habits)}):\n"]
-    for i, (habit_id, habit_text) in enumerate(habits, 1):
-        lines.append(f"{i}. {habit_text}")
-    await message.answer("\n".join(lines))
-
-
-@dp.message()
-async def catch_all_handler(message: Message) -> None:
-    """Игнорируем необработанные сообщения (меню и команды обрабатываются выше)."""
-    pass
-
-
-def run_api():
-    """Запуск FastAPI в Railway-совместимом режиме."""
-    import os
-    from api import app
-
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
-
-async def main() -> None:
-    global bot
-    bot = Bot(token=BOT_TOKEN)
-    await init_db()
-    # Запускаем FastAPI сервер в фоновом потоке
-    api_thread = threading.Thread(target=run_api, daemon=True)
-    api_thread.start()
-    logger.info("FastAPI сервер запущен на http://%s:%s", API_HOST, API_PORT)
-
-    # Настраиваем планировщик на ежедневную отправку в 21:00 по МСК
-    scheduler.add_job(
-        send_daily_reminder,
-        trigger="cron",
-        hour=20,
-        minute=20,
-        timezone="Europe/Moscow"
-    )
-    scheduler.start()
-    logger.info("Планировщик запущен. Напоминания будут отправляться каждый день в 21:00 по МСК")
-    
-    logger.info("Бот запущен")
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await close_db()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    else:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=name, callback_data=f"edit_habit_{hid}")]
+            for hid, name in habits
+        ])
+        await callback.message.edit_text(
