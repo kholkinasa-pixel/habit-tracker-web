@@ -257,6 +257,176 @@ async def cmd_set_habit(message: Message, state: FSMContext) -> None:
 
     success, err_msg = await add_habit(user_id, habit_text)
     if success:
+        text = f"✅ Привычка «{habit_text}» добавлена!\n\nЯ буду напоминать вам о ней каждый день в 21:00 по Москве 🌙"
+        await message.answer(text, reply_markup=get_bot_menu(user_id))
+    else:
+        await message.answer(err_msg or "Не удалось добавить привычку.")
+
+
+# --- FSM: Добавление привычки (кнопка «➕ Добавить привычку») ---
+
+@dp.message(F.text.in_({"➕ Добавить привычку", "Добавить привычку"}))
+async def cmd_menu_add_habit(message: Message, state: FSMContext) -> None:
+    """Кнопка меню: запуск FSM добавления привычки."""
+    await state.set_state(AddingHabit.waiting_for_name)
+    await message.answer(ONBOARDING_PROMPT)
+
+
+@dp.message(AddingHabit.waiting_for_name)
+async def process_add_habit_name(message: Message, state: FSMContext) -> None:
+    """Обработка названия привычки при добавлении."""
+    user_id = message.from_user.id
+    habit_text = (message.text or "").strip() if message.text else ""
+
+    if not habit_text or len(habit_text) < 2:
+        await message.answer("⚠️ Название должно быть не меньше 2 символов. Попробуй ещё раз.")
+        return
+
+    success, err_msg = await add_habit(user_id, habit_text)
+    await state.clear()
+
+    if success:
+        count = await get_habits_count(user_id)
+        if count == 1:
+            # Первая привычка (онбординг): специальное сообщение
+            text = f"✅ Привычка «{habit_text}» добавлена!\n\nТеперь я буду спрашивать вас каждый день в 21:00 😊"
+        else:
+            text = f"✅ Привычка «{habit_text}» добавлена!\n\nЯ буду напоминать вам о ней каждый день в 21:00 по Москве 🌙"
+        await message.answer(text, reply_markup=get_bot_menu(user_id))
+    else:
+        await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
+
+
+# --- FSM: Редактирование привычки ---
+
+@dp.message(F.text.in_({"✏️ Редактировать привычку", "Редактировать привычку"}))
+async def cmd_menu_edit_habit(message: Message, state: FSMContext) -> None:
+    """Кнопка меню: показать список привычек для редактирования."""
+    user_id = message.from_user.id
+    habits = await get_habits(user_id)
+
+    if not habits:
+        await message.answer("У тебя пока нет привычек. Добавь первую кнопкой «➕ Добавить привычку».")
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=name, callback_data=f"edit_habit_{hid}")]
+            for hid, name in habits
+        ]
+    )
+    await message.answer("Выбери привычку для редактирования:", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data.startswith("edit_habit_"))
+async def handle_edit_habit_choice(callback: CallbackQuery, state: FSMContext) -> None:
+    """Выбор привычки из списка: переход в состояние ожидания нового названия."""
+    user_id = callback.from_user.id
+    try:
+        habit_id = int(callback.data.split("_", 2)[2])
+    except (ValueError, IndexError):
+        await callback.answer("Ошибка")
+        return
+
+    habits = await get_habits(user_id)
+    habit_ids = {h[0] for h in habits}
+    if habit_id not in habit_ids:
+        await callback.answer("Эта привычка недоступна", show_alert=True)
+        return
+
+    old_name = next((n for hid, n in habits if hid == habit_id), "")
+    await state.update_data(habit_id=habit_id, old_name=old_name)
+    await state.set_state(EditingHabit.waiting_for_new_name)
+    await callback.message.edit_text(
+        f"Введите новое название для привычки «{old_name}»"
+    )
+    await callback.answer()
+
+
+@dp.message(EditingHabit.waiting_for_new_name)
+async def process_edit_habit_name(message: Message, state: FSMContext) -> None:
+    """Обработка нового названия при редактировании привычки."""
+    user_id = message.from_user.id
+    new_name = (message.text or "").strip() if message.text else ""
+
+    if not new_name or len(new_name) < 2:
+        await message.answer("⚠️ Название должно быть не меньше 2 символов. Попробуй ещё раз.")
+        return
+
+    data = await state.get_data()
+    habit_id = data.get("habit_id")
+    await state.clear()
+
+    if habit_id is None:
+        await message.answer("Сессия истекла. Выбери привычку заново.", reply_markup=get_bot_menu(user_id))
+        return
+
+    success, err_msg = await update_habit_name(habit_id, user_id, new_name)
+    if success:
+        await message.answer("✅ Название обновлено", reply_markup=get_bot_menu(user_id))
+    else:
+        await message.answer(err_msg or "Не удалось обновить.", reply_markup=get_bot_menu(user_id))
+
+
+# --- Остальные кнопки меню ---
+
+@dp.message(F.text.in_({"📋 Список привычек", "Посмотреть список привычек"}))
+async def cmd_menu_list_habits(message: Message) -> None:
+    """Кнопка меню: показать список привычек пользователя"""
+    user_id = message.from_user.id
+    habits = await get_habits(user_id)
+    if not habits:
         await message.answer(
-            f"✅ Привычка «{habit_text}» добавлена!\n\n"
-            f"Я буду напоминать
+            "У тебя пока нет привычек.\nИспользуй кнопку «➕ Добавить привычку» в меню."
+        )
+        return
+    lines = [f"📝 Твои привычки ({len(habits)}):\n"]
+    for i, (habit_id, habit_text) in enumerate(habits, 1):
+        lines.append(f"{i}. {habit_text}")
+    await message.answer("\n".join(lines))
+
+
+@dp.message()
+async def catch_all_handler(message: Message) -> None:
+    """Игнорируем необработанные сообщения (меню и команды обрабатываются выше)."""
+    pass
+
+
+def run_api():
+    """Запуск FastAPI в Railway-совместимом режиме."""
+    import os
+    from api import app
+
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+
+
+async def main() -> None:
+    global bot
+    bot = Bot(token=BOT_TOKEN)
+    await init_db()
+    # Запускаем FastAPI сервер в фоновом потоке
+    api_thread = threading.Thread(target=run_api, daemon=True)
+    api_thread.start()
+    logger.info("FastAPI сервер запущен на http://%s:%s", API_HOST, API_PORT)
+
+    # Настраиваем планировщик на ежедневную отправку в 21:00 по МСК
+    scheduler.add_job(
+        send_daily_reminder,
+        trigger="cron",
+        hour=20,
+        minute=20,
+        timezone="Europe/Moscow"
+    )
+    scheduler.start()
+    logger.info("Планировщик запущен. Напоминания будут отправляться каждый день в 21:00 по МСК")
+    
+    logger.info("Бот запущен")
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await close_db()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
