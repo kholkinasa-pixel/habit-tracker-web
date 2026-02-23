@@ -15,6 +15,8 @@ from aiogram.types import (
     KeyboardButton,
 )
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import BOT_TOKEN, WEBAPP_URL, API_HOST, API_PORT, BACKEND_PUBLIC_URL
@@ -26,7 +28,9 @@ from database import (
     get_habits,
     get_all_users_with_habits,
     save_daily_log,
+    update_habit_name,
 )
+from states import AddingHabit, EditingHabit
 
 # В Python 3.9+ с uvloop в главном потоке ещё нет event loop — создаём его до aiogram
 try:
@@ -38,7 +42,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 bot = None
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 scheduler = AsyncIOScheduler()
 
 
@@ -60,8 +64,12 @@ def get_bot_menu(user_id: int) -> ReplyKeyboardMarkup:
     """Меню с URL, содержащим user_id (initData при Reply Keyboard web_app часто пустой)."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Посмотреть трекер привычек", web_app=WebAppInfo(url=_webapp_url(user_id)))],
-            [KeyboardButton(text="Добавить привычку"), KeyboardButton(text="Посмотреть список привычек")],
+            [KeyboardButton(text="📅 Мой прогресс", web_app=WebAppInfo(url=_webapp_url(user_id)))],
+            [KeyboardButton(text="➕ Добавить привычку")],
+            [
+                KeyboardButton(text="📋 Список привычек"),
+                KeyboardButton(text="✏️ Редактировать привычку"),
+            ],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -149,13 +157,24 @@ async def handle_habit_callback(callback: CallbackQuery):
 
 
 @dp.message(Command("start"))
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, state: FSMContext) -> None:
+    await state.clear()  # Сброс FSM при старте/отмене
     await message.answer(
         "Привет! Я бот-трекер привычек. Чем могу помочь?\n\n"
-        "Используй меню ниже или /sethabit <текст привычки> чтобы добавить привычку (максимум 2).\n\n"
+        "Используй меню ниже: добавь привычку, смотри прогресс в календаре.\n\n"
         "Каждый день в 21:00 по МСК я буду спрашивать тебя о твоих привычках!",
         reply_markup=get_bot_menu(message.from_user.id),
     )
+
+
+@dp.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext) -> None:
+    """Выход из текущего диалога (добавление/редактирование привычки)."""
+    current = await state.get_state()
+    if current is None:
+        return
+    await state.clear()
+    await message.answer("Отменено.", reply_markup=get_bot_menu(message.from_user.id))
 
 
 @dp.message(Command("calendar"))
@@ -168,46 +187,152 @@ async def cmd_calendar(message: Message) -> None:
 
 
 @dp.message(Command("sethabit"))
-async def cmd_set_habit(message: Message) -> None:
-    """Команда для сохранения или обновления привычки"""
+async def cmd_set_habit(message: Message, state: FSMContext) -> None:
+    """
+    [DEPRECATED] Команда для добавления привычки. Оставлена для обратной совместимости.
+    Рекомендуется использовать кнопку «➕ Добавить привычку».
+    """
     user_id = message.from_user.id
     command_parts = message.text.split(maxsplit=1)
     if len(command_parts) < 2:
-        await message.answer("Пожалуйста, укажи текст привычки после команды.\n"
-                           "Пример: /sethabit Пить 2 литра воды в день")
+        await message.answer(
+            "Пожалуйста, укажи текст привычки после команды.\n"
+            "Пример: /sethabit Пить 2 литра воды в день\n\n"
+            "Или используй кнопку «➕ Добавить привычку» в меню."
+        )
         return
-    
+
     habit_text = command_parts[1].strip()
-    
-    if not habit_text:
-        await message.answer("Текст привычки не может быть пустым!")
+
+    if not habit_text or len(habit_text) < 2:
+        await message.answer("Текст привычки должен быть не меньше 2 символов!")
         return
 
     success, err_msg = await add_habit(user_id, habit_text)
     if success:
-        await message.answer(f"✅ Привычка сохранена!\n\n📝 Твоя привычка: {habit_text}\n\n"
-                            f"Каждый день в 21:00 по МСК я буду спрашивать тебя о твоей привычке!")
+        await message.answer(
+            f"✅ Привычка «{habit_text}» добавлена!\n"
+            f"Я буду спрашивать о ней каждый день в 21:00.",
+            reply_markup=get_bot_menu(user_id),
+        )
     else:
         await message.answer(err_msg or "Не удалось добавить привычку.")
 
 
-@dp.message(F.text == "Добавить привычку")
-async def cmd_menu_add_habit(message: Message) -> None:
-    """Кнопка меню: подсказка как добавить привычку"""
-    await message.answer(
-        "Чтобы добавить привычку, отправь команду:\n"
-        "/sethabit <текст привычки>\n\n"
-        "Например: /sethabit Пить 2 литра воды в день"
+# --- FSM: Добавление привычки (кнопка «➕ Добавить привычку») ---
+
+@dp.message(F.text.in_({"➕ Добавить привычку", "Добавить привычку"}))
+async def cmd_menu_add_habit(message: Message, state: FSMContext) -> None:
+    """Кнопка меню: запуск FSM добавления привычки."""
+    await state.set_state(AddingHabit.waiting_for_name)
+    await message.answer("✍️ Напишите привычку, которую хотите отслеживать.")
+
+
+@dp.message(AddingHabit.waiting_for_name)
+async def process_add_habit_name(message: Message, state: FSMContext) -> None:
+    """Обработка названия привычки при добавлении."""
+    user_id = message.from_user.id
+    habit_text = (message.text or "").strip() if message.text else ""
+
+    if not habit_text or len(habit_text) < 2:
+        await message.answer("⚠️ Название должно быть не меньше 2 символов. Попробуй ещё раз.")
+        return
+
+    success, err_msg = await add_habit(user_id, habit_text)
+    await state.clear()
+
+    if success:
+        await message.answer(
+            f"✅ Привычка «{habit_text}» добавлена!\n"
+            f"Я буду спрашивать о ней каждый день в 21:00.",
+            reply_markup=get_bot_menu(user_id),
+        )
+    else:
+        await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
+
+
+# --- FSM: Редактирование привычки ---
+
+@dp.message(F.text.in_({"✏️ Редактировать привычку", "Редактировать привычку"}))
+async def cmd_menu_edit_habit(message: Message, state: FSMContext) -> None:
+    """Кнопка меню: показать список привычек для редактирования."""
+    user_id = message.from_user.id
+    habits = await get_habits(user_id)
+
+    if not habits:
+        await message.answer("У тебя пока нет привычек. Добавь первую кнопкой «➕ Добавить привычку».")
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=name, callback_data=f"edit_habit_{hid}")]
+            for hid, name in habits
+        ]
     )
+    await message.answer("Выбери привычку для редактирования:", reply_markup=keyboard)
 
 
-@dp.message(F.text == "Посмотреть список привычек")
+@dp.callback_query(F.data.startswith("edit_habit_"))
+async def handle_edit_habit_choice(callback: CallbackQuery, state: FSMContext) -> None:
+    """Выбор привычки из списка: переход в состояние ожидания нового названия."""
+    user_id = callback.from_user.id
+    try:
+        habit_id = int(callback.data.split("_", 2)[2])
+    except (ValueError, IndexError):
+        await callback.answer("Ошибка")
+        return
+
+    habits = await get_habits(user_id)
+    habit_ids = {h[0] for h in habits}
+    if habit_id not in habit_ids:
+        await callback.answer("Эта привычка недоступна", show_alert=True)
+        return
+
+    old_name = next((n for hid, n in habits if hid == habit_id), "")
+    await state.update_data(habit_id=habit_id, old_name=old_name)
+    await state.set_state(EditingHabit.waiting_for_new_name)
+    await callback.message.edit_text(
+        f"Введите новое название для привычки «{old_name}»"
+    )
+    await callback.answer()
+
+
+@dp.message(EditingHabit.waiting_for_new_name)
+async def process_edit_habit_name(message: Message, state: FSMContext) -> None:
+    """Обработка нового названия при редактировании привычки."""
+    user_id = message.from_user.id
+    new_name = (message.text or "").strip() if message.text else ""
+
+    if not new_name or len(new_name) < 2:
+        await message.answer("⚠️ Название должно быть не меньше 2 символов. Попробуй ещё раз.")
+        return
+
+    data = await state.get_data()
+    habit_id = data.get("habit_id")
+    await state.clear()
+
+    if habit_id is None:
+        await message.answer("Сессия истекла. Выбери привычку заново.", reply_markup=get_bot_menu(user_id))
+        return
+
+    success, err_msg = await update_habit_name(habit_id, user_id, new_name)
+    if success:
+        await message.answer("✅ Название обновлено", reply_markup=get_bot_menu(user_id))
+    else:
+        await message.answer(err_msg or "Не удалось обновить.", reply_markup=get_bot_menu(user_id))
+
+
+# --- Остальные кнопки меню ---
+
+@dp.message(F.text.in_({"📋 Список привычек", "Посмотреть список привычек"}))
 async def cmd_menu_list_habits(message: Message) -> None:
     """Кнопка меню: показать список привычек пользователя"""
     user_id = message.from_user.id
     habits = await get_habits(user_id)
     if not habits:
-        await message.answer("У тебя пока нет привычек.\nИспользуй /sethabit <текст привычки> чтобы добавить первую.")
+        await message.answer(
+            "У тебя пока нет привычек.\nИспользуй кнопку «➕ Добавить привычку» в меню."
+        )
         return
     lines = [f"📝 Твои привычки ({len(habits)}):\n"]
     for i, (habit_id, habit_text) in enumerate(habits, 1):

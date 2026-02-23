@@ -1,9 +1,11 @@
 """
 Модуль работы с PostgreSQL (Supabase) через asyncpg.
 Использует пул соединений, совместим с Railway.
+Поддерживает переопределение через PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE.
 """
 import asyncio
 import logging
+import os
 import ssl
 from datetime import date
 from typing import Optional, List, Tuple
@@ -64,7 +66,7 @@ def _parse_database_url(url: str) -> dict:
     if not host:
         host = "localhost"
 
-    return {
+    result = {
         "host": host,
         "port": port,
         "user": user,
@@ -72,6 +74,25 @@ def _parse_database_url(url: str) -> dict:
         "database": database,
         "options": options,
     }
+
+    # Переопределение из переменных (PGHOST или DATABASE_HOST для Supabase/Railway)
+    if os.getenv("PGHOST"):
+        result["host"] = os.getenv("PGHOST", "").strip()
+    elif os.getenv("DATABASE_HOST"):
+        result["host"] = os.getenv("DATABASE_HOST", "").strip()
+    if os.getenv("PGPORT"):
+        try:
+            result["port"] = int(os.getenv("PGPORT", "5432"))
+        except ValueError:
+            pass
+    if os.getenv("PGUSER"):
+        result["user"] = os.getenv("PGUSER")
+    if os.getenv("PGPASSWORD"):
+        result["password"] = os.getenv("PGPASSWORD")
+    if os.getenv("PGDATABASE"):
+        result["database"] = os.getenv("PGDATABASE", "").strip()
+
+    return result
 
 
 def _get_pool() -> asyncpg.Pool:
@@ -135,7 +156,8 @@ async def init_db() -> None:
         )
         raise RuntimeError(
             f"Не удалось подключиться к PostgreSQL (host={host}, port={port}). "
-            "Проверьте переменную DATABASE_URL в Railway и что проект Supabase не приостановлен."
+            "Проверьте DATABASE_URL. Если host=postgres — задайте PGHOST или DATABASE_HOST "
+            "на нужный хост (напр. aws-0-xxx.pooler.supabase.com для Supabase)."
         ) from e
     _pools[loop] = pool
     logger.info("Пул соединений PostgreSQL создан")
@@ -258,6 +280,31 @@ async def get_habit_by_id(habit_id: int) -> Optional[str]:
             habit_id,
         )
         return row["habit_text"] if row else None
+
+
+async def update_habit_name(habit_id: int, user_id: int, new_name: str) -> Tuple[bool, Optional[str]]:
+    """
+    Обновляет название привычки. Проверяет, что habit_id принадлежит user_id.
+    Возвращает (успех, сообщение_об_ошибке).
+    """
+    pool = _get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM habits WHERE id = $1 AND user_id = $2",
+            habit_id,
+            user_id,
+        )
+        if not row:
+            return False, "Привычка не найдена или не принадлежит тебе."
+
+        await conn.execute(
+            "UPDATE habits SET habit_text = $1 WHERE id = $2 AND user_id = $3",
+            new_name.strip(),
+            habit_id,
+            user_id,
+        )
+    logger.info(f"Привычка {habit_id} обновлена пользователем {user_id}: {new_name}")
+    return True, None
 
 
 async def get_all_users_with_habits() -> List[Tuple[int, int, str]]:
