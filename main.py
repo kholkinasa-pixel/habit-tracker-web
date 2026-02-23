@@ -224,6 +224,7 @@ async def cmd_set_habit(message: Message, state: FSMContext) -> None:
             f"Я буду напоминать вам о ней каждый день в 21:00 по Москве 🌙",
             reply_markup=_habit_added_keyboard(user_id),
         )
+        await message.answer("Меню:", reply_markup=get_bot_menu(user_id))
     else:
         await message.answer(err_msg or "Не удалось добавить привычку.")
 
@@ -256,6 +257,7 @@ async def process_add_habit_name(message: Message, state: FSMContext) -> None:
             f"Я буду напоминать вам о ней каждый день в 21:00 по Москве 🌙",
             reply_markup=_habit_added_keyboard(user_id),
         )
+        await message.answer("Меню:", reply_markup=get_bot_menu(user_id))
     else:
         await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
 
