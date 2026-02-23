@@ -175,6 +175,68 @@ function isActiveDay(status) {
     return status === 'minimum' || status === 'good';
 }
 
+function toDateKey(d) {
+    const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Расчёт серий: { current, longest }. Текущая — подряд до сегодня включительно. */
+function computeStreaks() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayKey = toDateKey(today);
+
+    const activeDates = Object.keys(dayData).filter(k => isActiveDay(dayData[k]));
+    if (activeDates.length === 0) return { current: 0, longest: 0 };
+
+    activeDates.sort();
+
+    let current = 0;
+    let startDate = new Date(today);
+    if (!isActiveDay(dayData[todayKey])) {
+        startDate.setDate(startDate.getDate() - 1);
+    }
+    let d = new Date(startDate);
+    while (true) {
+        const k = toDateKey(d);
+        if (isActiveDay(dayData[k])) {
+            current++;
+            d.setDate(d.getDate() - 1);
+        } else break;
+    }
+
+    let longest = 1;
+    let run = 1;
+    for (let i = 1; i < activeDates.length; i++) {
+        const prev = new Date(activeDates[i - 1]);
+        const curr = new Date(activeDates[i]);
+        const diffDays = Math.round((curr - prev) / (24 * 60 * 60 * 1000));
+        if (diffDays === 1) {
+            run++;
+            longest = Math.max(longest, run);
+        } else {
+            run = 1;
+        }
+    }
+
+    return { current, longest };
+}
+
+function renderStreaks() {
+    const el = document.getElementById('streak-stats');
+    if (!el) return;
+    const { current, longest } = computeStreaks();
+    el.innerHTML = '';
+    const curSpan = document.createElement('span');
+    curSpan.className = 'streak-current';
+    curSpan.textContent = `Текущая серия: ${current} ${current === 1 ? 'день' : current < 5 ? 'дня' : 'дней'}${current > 0 ? ' 🔥' : ''}`;
+    el.appendChild(curSpan);
+    const longSpan = document.createElement('span');
+    longSpan.className = 'streak-longest';
+    longSpan.textContent = `Самая длинная серия: ${longest} ${longest === 1 ? 'день' : longest < 5 ? 'дня' : 'дней'}`;
+    el.appendChild(longSpan);
+}
+
 /** Статистика за месяц: { activeDays, totalDays }. Только для прошедших месяцев. */
 function getMonthlyStats(year, month) {
     const totalDays = new Date(year, month + 1, 0).getDate();
@@ -298,16 +360,16 @@ function renderCalendar() {
         monthLabel.className = 'month-label';
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
         if (isLastRowOfMonth) {
-            const firstDay = rowData.days.find(d => d !== null);
-            const rowYear = firstDay ? firstDay.date.getFullYear() : 0;
-            const rowMonth = rowData.month;
-            const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
-            const isPastMonth = rowYear < today.getFullYear() || (rowYear === today.getFullYear() && rowMonth < today.getMonth());
+            // const firstDay = rowData.days.find(d => d !== null);
+            // const rowYear = firstDay ? firstDay.date.getFullYear() : 0;
+            // const rowMonth = rowData.month;
+            // const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
+            // const isPastMonth = rowYear < today.getFullYear() || (rowYear === today.getFullYear() && rowMonth < today.getMonth());
             let label = monthsShort[rowData.month];
-            if (isPastMonth && firstDay) {
-                const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
-                label += ' ' + activeDays + '/' + totalDays;
-            }
+            // if (isPastMonth && firstDay) {
+            //     const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+            //     label += ' ' + activeDays + '/' + totalDays;
+            // }
             monthLabel.textContent = label;
         } else {
             monthLabel.textContent = '';
@@ -341,6 +403,7 @@ function renderCalendar() {
     });
 
     container.appendChild(grid);
+    renderStreaks();
 }
 
 document.getElementById('habit-title-btn').addEventListener('click', (e) => {

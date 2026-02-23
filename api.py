@@ -2,6 +2,7 @@
 FastAPI сервер для отдачи данных привычек в JSON.
 """
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -31,12 +32,35 @@ LEVEL_TO_CALENDAR = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-    await close_db()
+    try:
+        await init_db()
+    except Exception as e:
+        logger.exception("Ошибка при инициализации БД в lifespan: %s", e)
+        raise
+    try:
+        yield
+    finally:
+        try:
+            await close_db()
+        except Exception as e:
+            logger.exception("Ошибка при закрытии БД: %s", e)
 
 
 app = FastAPI(title="Habit Tracker API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """Логируем полный traceback при любой необработанной ошибке."""
+    logger.exception(
+        "Необработанная ошибка при %s %s: %s\n%s",
+        request.method if hasattr(request, "method") else "?",
+        str(request.url) if hasattr(request, "url") else "?",
+        exc,
+        traceback.format_exc(),
+    )
+    raise exc
+
 
 # Корневая директория проекта (рядом с api.py)
 _STATIC_DIR = Path(__file__).resolve().parent

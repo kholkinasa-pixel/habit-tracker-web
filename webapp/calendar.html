@@ -67,6 +67,22 @@
             background: rgba(128, 128, 128, 0.15);
         }
 
+        .streak-stats {
+            margin-top: 12px;
+            margin-bottom: 0;
+            font-size: 13px;
+            color: var(--tg-theme-text-color, #333);
+            line-height: 1.5;
+        }
+        .streak-stats span {
+            display: block;
+        }
+        .streak-stats .streak-current { margin-bottom: 2px; }
+        .streak-stats .streak-longest {
+            font-size: 12px;
+            color: var(--tg-theme-hint-color, #6b7280);
+        }
+
         /* Легенда цветов календаря */
         .calendar-legend {
             display: flex;
@@ -186,6 +202,7 @@
             <span id="habit-title-text">Выбери привычку</span>
         </button>
         <div class="habit-dropdown" id="habit-dropdown" role="listbox"></div>
+        <div class="streak-stats" id="streak-stats"></div>
     </div>
     <div class="calendar-legend">
         <span class="calendar-legend-item"><span class="calendar-legend-square no-data"></span> нет отметки</span>
