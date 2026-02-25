@@ -80,14 +80,11 @@ def _webapp_url(user_id=None) -> str:
 
 
 def get_bot_menu(user_id: int) -> ReplyKeyboardMarkup:
-    """Главное меню: Мой прогресс, Отметить прогресс (с динамической датой), Настройки."""
-    today = date.today()
-    date_str = format_date_ru(today)
+    """Главное меню: Мой прогресс, Привычки."""
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="📈 Мой прогресс", web_app=WebAppInfo(url=_webapp_url(user_id)))],
-            [KeyboardButton(text=f"✅ Отметить прогресс за {date_str}")],
-            [KeyboardButton(text="⚙️ Настройки")],
+            [KeyboardButton(text="📋 Привычки")],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -139,7 +136,17 @@ async def send_daily_reminder():
         logger.error(f"Критическая ошибка в send_daily_reminder: {e}")
 
 
-# --- Кнопка «✅ Отметить прогресс за <дата>» ---
+# --- Отметить прогресс (выбор привычки) ---
+
+def _get_mark_progress_keyboard(habits: list, date_str: str) -> tuple[str, InlineKeyboardMarkup]:
+    """Формирует текст и клавиатуру для выбора привычки при отметке прогресса."""
+    text = f"Выберите привычку для отметки прогресса за {date_str}"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=name, callback_data=f"mark_select_{hid}")]
+        for hid, name in habits
+    ])
+    return text, keyboard
+
 
 @dp.message(F.text.startswith("✅ Отметить прогресс"))
 async def cmd_mark_progress(message: Message, state: FSMContext) -> None:
@@ -152,15 +159,11 @@ async def cmd_mark_progress(message: Message, state: FSMContext) -> None:
     habits = await get_habits(user_id)
     if not habits:
         await message.answer(
-            "У тебя пока нет привычек. Добавь первую в разделе «⚙️ Настройки»."
+            "У тебя пока нет привычек. Добавь первую в разделе «📋 Привычки»."
         )
         return
 
-    text = f"Выберите привычку, по которой хотите отметить прогресс за {date_str}"
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=name, callback_data=f"mark_select_{hid}")]
-        for hid, name in habits
-    ])
+    text, keyboard = _get_mark_progress_keyboard(habits, date_str)
     await message.answer(text, reply_markup=keyboard)
 
 
@@ -190,7 +193,7 @@ async def handle_mark_select_habit(callback: CallbackQuery) -> None:
         return
 
     habit_text = next((n for hid, n in habits if hid == habit_id), "")
-    text = f'Как прошёл день по привычке „{habit_text}"?'
+    text = f'«{habit_text}» — как сегодня?'
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="❌ Нет", callback_data=f"habit_no_{habit_id}"),
@@ -381,19 +384,42 @@ async def process_add_habit_name(message: Message, state: FSMContext) -> None:
         await message.answer(err_msg or "Не удалось добавить привычку.", reply_markup=get_bot_menu(user_id))
 
 
-# --- ⚙️ Настройки (главное меню) ---
+# --- 📋 Привычки (главное меню) ---
 
-@dp.message(F.text.in_({"⚙️ Настройки", "Настройки"}))
-async def cmd_settings(message: Message, state: FSMContext) -> None:
-    """Открывает меню настроек: Список, Добавить, Редактировать, Удалить привычку."""
+@dp.message(F.text.in_({"📋 Привычки", "Привычки"}))
+async def cmd_habits(message: Message, state: FSMContext) -> None:
+    """Открывает меню привычек: Отметить прогресс, Список, Добавить, Редактировать, Удалить."""
     await state.clear()
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить привычку", callback_data="settings_add")],
+        [InlineKeyboardButton(text="✅ Отметить прогресс за сегодня", callback_data="settings_mark_progress")],
         [InlineKeyboardButton(text="📋 Список привычек", callback_data="settings_list")],
         [InlineKeyboardButton(text="✏️ Редактировать привычку", callback_data="settings_edit")],
+        [InlineKeyboardButton(text="➕ Добавить привычку", callback_data="settings_add")],
         [InlineKeyboardButton(text="🗑 Удалить привычку", callback_data="settings_delete")],
     ])
-    await message.answer("⚙️ Настройки", reply_markup=keyboard)
+    await message.answer("📋 Привычки", reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "settings_mark_progress")
+async def handle_settings_mark_progress(callback: CallbackQuery, state: FSMContext) -> None:
+    """Кнопка «Отметить прогресс за сегодня» из меню Привычки."""
+    await state.clear()
+    user_id = callback.from_user.id
+    today = date.today()
+    date_str = format_date_ru(today)
+
+    habits = await get_habits(user_id)
+    if not habits:
+        await callback.message.edit_text(
+            "У тебя пока нет привычек. Добавь первую.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Добавить привычку", callback_data="settings_add")]
+            ])
+        )
+    else:
+        text, keyboard = _get_mark_progress_keyboard(habits, date_str)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "settings_add")
@@ -433,7 +459,7 @@ async def handle_settings_edit(callback: CallbackQuery) -> None:
     habits = await get_habits(user_id)
     if not habits:
         await callback.message.edit_text(
-            "У тебя пока нет привычек. Добавь первую в настройках.",
+            "У тебя пока нет привычек. Добавь первую.",
             reply_markup=None
         )
     else:
