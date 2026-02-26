@@ -405,7 +405,7 @@ function renderCalendar() {
 
             const monthLabel = document.createElement('div');
             monthLabel.className = 'month-label month-label-vertical' + (isFullMonth ? '' : ' short');
-            monthLabel.textContent = isFullMonth ? monthsFull[rowMonth] : monthsShort[rowMonth];
+            monthLabel.textContent = isFullMonth ? monthsFull[rowMonth] : monthsFull[rowMonth].slice(0, 3);
             monthLabelWrap.appendChild(monthLabel);
 
             if (isFullMonth) {
