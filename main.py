@@ -605,4 +605,38 @@ async def catch_all_handler(message: Message) -> None:
 def run_api():
     """Запуск FastAPI в Railway-совместимом режиме."""
     import os
-    fro
+    from api import app
+
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+
+
+async def main() -> None:
+    global bot
+    bot = Bot(token=BOT_TOKEN)
+    await init_db()
+    # Запускаем FastAPI сервер в фоновом потоке
+    api_thread = threading.Thread(target=run_api, daemon=True)
+    api_thread.start()
+    logger.info("FastAPI сервер запущен на http://%s:%s", API_HOST, API_PORT)
+
+    # Настраиваем планировщик на ежедневную отправку в 21:00 по МСК
+    scheduler.add_job(
+        send_daily_reminder,
+        trigger="cron",
+        hour=21,
+        minute=0,
+        timezone="Europe/Moscow"
+    )
+    scheduler.start()
+    logger.info("Планировщик запущен. Напоминания будут отправляться каждый день в 21:00 по МСК")
+    
+    logger.info("Бот запущен")
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await close_db()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
