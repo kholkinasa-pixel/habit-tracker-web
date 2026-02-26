@@ -271,29 +271,30 @@ function renderCalendar() {
     futureStart.setDate(today.getDate() + 14);
     const mondayFuture2 = getMonday(futureStart);
 
-    let totalWeeks;
     const dataDates = Object.keys(dayData).map(k => {
         const [y, m, d] = k.split('-').map(Number);
         return new Date(y, m - 1, d);
     });
-    if (dataDates.length > 0) {
-        const minDataDate = new Date(Math.min(...dataDates.map(d => d.getTime())));
-        minDataDate.setHours(0, 0, 0, 0);
-        const mondayMin = getMonday(minDataDate);
-        const weeksFromMin = Math.ceil((mondayFuture2 - mondayMin) / (7 * 24 * 60 * 60 * 1000));
-        totalWeeks = weeksFromMin + 1;
-    } else {
-        totalWeeks = 3;
-    }
+    const hasLogs = dataDates.length > 0;
+    const displayStartDate = hasLogs
+        ? (() => { const d = new Date(Math.min(...dataDates.map(x => x.getTime()))); d.setHours(0, 0, 0, 0); return d; })()
+        : today;
+    const startMonday = getMonday(displayStartDate);
+    const totalWeeks = Math.ceil((mondayFuture2.getTime() - startMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
 
     const weeks = [];
     for (let i = 0; i < totalWeeks; i++) {
         const monday = new Date(mondayFuture2);
         monday.setDate(mondayFuture2.getDate() - 7 * i);
+        const isStartWeek = monday.getTime() === startMonday.getTime();
         const weekDays = [];
         for (let j = 0; j < 7; j++) {
             const d = new Date(monday);
             d.setDate(monday.getDate() + j);
+            if (isStartWeek && d < displayStartDate) {
+                weekDays.push(null);
+                continue;
+            }
             const isFuture = d > today;
             const isToday = d.getTime() === today.getTime();
             const status = isFuture ? null : getDayData(d.getFullYear(), d.getMonth(), d.getDate());
@@ -310,16 +311,27 @@ function renderCalendar() {
 
     // Разбить недели по месяцам: если неделя пересекает границу — разделить на две части
     const displayRows = [];
+    function firstNonNullDay(days) {
+        return days.find(d => d !== null);
+    }
+    function lastNonNullDay(days) {
+        for (let i = days.length - 1; i >= 0; i--) if (days[i] !== null) return days[i];
+        return null;
+    }
     for (let i = 0; i < weeks.length; i++) {
         const week = weeks[i];
-        const firstMonth = week.days[0].date.getMonth();
-        const lastMonth = week.days[6].date.getMonth();
+        const firstDay = firstNonNullDay(week.days);
+        const lastDay = lastNonNullDay(week.days);
+        const firstMonth = firstDay ? firstDay.date.getMonth() : 0;
+        const lastMonth = lastDay ? lastDay.date.getMonth() : 0;
         if (firstMonth === lastMonth) {
             displayRows.push({ month: firstMonth, days: week.days });
         } else {
             let splitIndex = -1;
             for (let j = 1; j < 7; j++) {
-                if (week.days[j].date.getMonth() !== week.days[j - 1].date.getMonth()) {
+                const curr = week.days[j];
+                const prev = week.days[j - 1];
+                if (curr !== null && prev !== null && curr.date.getMonth() !== prev.date.getMonth()) {
                     splitIndex = j;
                     break;
                 }
@@ -333,9 +345,10 @@ function renderCalendar() {
                 for (let j = 0; j < 7; j++) {
                     earlierPart.push(j < splitIndex ? week.days[j] : null);
                 }
-                // Сначала добавляем часть «позже» месяца (например март), затем «раньше» (февраль)
-                displayRows.push({ month: week.days[splitIndex].date.getMonth(), days: laterPart });
-                displayRows.push({ month: week.days[0].date.getMonth(), days: earlierPart });
+                const laterMonth = week.days[splitIndex] ? week.days[splitIndex].date.getMonth() : firstMonth;
+                const earlierMonth = firstDay ? firstDay.date.getMonth() : firstMonth;
+                displayRows.push({ month: laterMonth, days: laterPart });
+                displayRows.push({ month: earlierMonth, days: earlierPart });
             } else {
                 displayRows.push({ month: firstMonth, days: week.days });
             }
