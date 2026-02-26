@@ -401,4 +401,82 @@ function renderCalendar() {
             cell.className = 'day-cell';
             if (day === null) {
                 cell.classList.add('empty');
-            } else if (da
+            } else if (day.isFuture) {
+                cell.classList.add('blocked');
+                cell.textContent = day.dayNum;
+            } else {
+                cell.classList.add('status-' + (day.status || 'no-data'));
+                if (day.isToday) cell.classList.add('today');
+                if (day.isToday) cell.textContent = day.dayNum;
+            }
+            cellsRow.appendChild(cell);
+        });
+        weekContent.appendChild(cellsRow);
+        row.appendChild(weekContent);
+
+        const monthLabelWrap = document.createElement('div');
+        monthLabelWrap.className = 'month-label-wrap';
+        if (isLastRowOfMonth) {
+            if (firstNonNullIndex >= 0) {
+                row.dataset.monthOffset = String(firstNonNullIndex);
+            }
+            const firstDay = rowData.days.find(d => d !== null);
+            const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
+            const rowMonth = rowData.month;
+            const firstDayOfMonth = firstDay ? firstDay.date.getDate() : 1;
+            const isFullMonth = firstDayOfMonth === 1;
+
+            const monthLabel = document.createElement('div');
+            monthLabel.className = 'month-label month-label-vertical' + (isFullMonth ? '' : ' short');
+            monthLabel.textContent = isFullMonth ? monthsFull[rowMonth] : monthsShort[rowMonth];
+            monthLabelWrap.appendChild(monthLabel);
+
+            if (isFullMonth) {
+                const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+                const monthProgress = document.createElement('div');
+                monthProgress.className = 'month-progress month-label-vertical';
+                monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
+                monthLabelWrap.appendChild(monthProgress);
+            }
+        }
+        row.appendChild(monthLabelWrap);
+
+        grid.appendChild(row);
+    });
+
+    container.appendChild(grid);
+
+    // Выравнивание метки месяца по первому дню: смещение в px по высоте ячейки
+    requestAnimationFrame(() => {
+        const firstRow = grid.querySelector('.calendar-week-row');
+        const sampleCell = firstRow?.querySelector('.cells-row .day-cell:not(.empty)');
+        const cellHeight = sampleCell ? sampleCell.offsetHeight : 40;
+        const gap = 4;
+        grid.querySelectorAll('.calendar-week-row').forEach((r) => {
+            const offset = parseInt(r.dataset.monthOffset || '0', 10);
+            r.style.setProperty('--month-offset-px', `${(cellHeight + gap) * offset}px`);
+        });
+    });
+
+    renderStreaks();
+}
+
+document.getElementById('habit-title-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+});
+
+document.addEventListener('click', () => closeDropdown());
+
+document.getElementById('habit-dropdown').addEventListener('click', (e) => e.stopPropagation());
+
+async function init() {
+    habitTexts = await loadHabits();
+    if (habitTexts.length) {
+        selectedHabitId = habitTexts[0].id;
+    }
+    renderHabitSwitcher();
+    await loadCalendarData(selectedHabitId);
+}
+
+init();
