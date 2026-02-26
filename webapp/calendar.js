@@ -394,9 +394,8 @@ function renderCalendar() {
         const monthLabelWrap = document.createElement('div');
         monthLabelWrap.className = 'month-label-wrap';
         if (isLastRowOfMonth) {
-            if (firstNonNullIndex >= 0) {
-                row.dataset.monthOffset = String(firstNonNullIndex);
-            }
+            const monthRowCount = displayRows.filter(r => r.month === rowData.month).length;
+            row.dataset.monthRows = String(monthRowCount);
             const firstDay = rowData.days.find(d => d !== null);
             const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
             const rowMonth = rowData.month;
@@ -450,15 +449,18 @@ function renderCalendar() {
 
     container.appendChild(grid);
 
-    // Выравнивание метки месяца по первому дню: смещение в px по высоте ячейки
+    // Центрирование подписи месяца по вертикали относительно блока месяца (всех его строк)
     requestAnimationFrame(() => {
-        const firstRow = grid.querySelector('.calendar-week-row');
-        const sampleCell = firstRow?.querySelector('.cells-row .day-cell:not(.empty)');
-        const cellHeight = sampleCell ? sampleCell.offsetHeight : 40;
-        const gap = 4;
+        const gridGap = 4;
         grid.querySelectorAll('.calendar-week-row').forEach((r) => {
-            const offset = parseInt(r.dataset.monthOffset || '0', 10);
-            r.style.setProperty('--month-offset-px', `${(cellHeight + gap) * offset}px`);
+            const monthRows = parseInt(r.dataset.monthRows || '0', 10);
+            if (monthRows <= 0) return;
+            const rowHeight = r.offsetHeight;
+            const totalMonthHeight = monthRows * rowHeight + (monthRows - 1) * gridGap;
+            const labelInLastRow = (monthRows - 1) * (rowHeight + gridGap) + rowHeight / 2;
+            const monthCenter = totalMonthHeight / 2;
+            const offsetPx = monthCenter - labelInLastRow;
+            r.style.setProperty('--month-center-offset-px', `${offsetPx}px`);
         });
     });
 

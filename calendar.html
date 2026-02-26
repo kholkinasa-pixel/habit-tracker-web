@@ -164,10 +164,11 @@
             height: 6px;
             flex-shrink: 0;
         }
-        /* Блок месяца: по центру по высоте строки */
+        /* Блок месяца: центрирован по вертикали относительно длины месяца справа */
         .month-label-wrap {
             flex: 0 0 36px;
             padding-top: 0;
+            margin-top: var(--month-center-offset-px, 0);
             display: flex;
             flex-direction: row;
             align-items: center;
