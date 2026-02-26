@@ -30,6 +30,8 @@ function getUserId() {
 
 const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
     'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
+const monthsFull = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 let dayData = {};
 let habitTexts = [];
@@ -385,25 +387,31 @@ function renderCalendar() {
         const row = document.createElement('div');
         row.className = 'calendar-week-row';
 
-        const monthLabel = document.createElement('div');
-        monthLabel.className = 'month-label';
+        const firstNonNullIndex = rowData.days.findIndex(d => d !== null);
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
+
+        const monthLabelWrap = document.createElement('div');
+        monthLabelWrap.className = 'month-label-wrap';
         if (isLastRowOfMonth) {
-            // const firstDay = rowData.days.find(d => d !== null);
-            // const rowYear = firstDay ? firstDay.date.getFullYear() : 0;
-            // const rowMonth = rowData.month;
-            // const isCurrentMonth = rowYear === today.getFullYear() && rowMonth === today.getMonth();
-            // const isPastMonth = rowYear < today.getFullYear() || (rowYear === today.getFullYear() && rowMonth < today.getMonth());
-            let label = monthsShort[rowData.month];
-            // if (isPastMonth && firstDay) {
-            //     const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
-            //     label += ' ' + activeDays + '/' + totalDays;
-            // }
-            monthLabel.textContent = label;
-        } else {
-            monthLabel.textContent = '';
+            if (firstNonNullIndex >= 0) {
+                row.dataset.monthOffset = String(firstNonNullIndex);
+            }
+            const firstDay = rowData.days.find(d => d !== null);
+            const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
+            const rowMonth = rowData.month;
+            const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+
+            const monthLabel = document.createElement('div');
+            monthLabel.className = 'month-label month-label-vertical';
+            monthLabel.textContent = monthsFull[rowMonth];
+            monthLabelWrap.appendChild(monthLabel);
+
+            const monthProgress = document.createElement('div');
+            monthProgress.className = 'month-progress month-label-vertical';
+            monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
+            monthLabelWrap.appendChild(monthProgress);
         }
-        row.appendChild(monthLabel);
+        row.appendChild(monthLabelWrap);
 
         const weekContent = document.createElement('div');
         weekContent.className = 'week-content';
@@ -432,6 +440,19 @@ function renderCalendar() {
     });
 
     container.appendChild(grid);
+
+    // Выравнивание метки месяца по первому дню: смещение в px по высоте ячейки
+    requestAnimationFrame(() => {
+        const firstRow = grid.querySelector('.calendar-week-row');
+        const sampleCell = firstRow?.querySelector('.cells-row .day-cell:not(.empty)');
+        const cellHeight = sampleCell ? sampleCell.offsetHeight : 40;
+        const gap = 4;
+        grid.querySelectorAll('.calendar-week-row').forEach((r) => {
+            const offset = parseInt(r.dataset.monthOffset || '0', 10);
+            r.style.setProperty('--month-offset-px', `${(cellHeight + gap) * offset}px`);
+        });
+    });
+
     renderStreaks();
 }
 
