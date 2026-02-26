@@ -152,8 +152,8 @@
         }
         .calendar-week-row {
             display: grid;
-            grid-template-columns: 36px 1fr;
-            gap: 8px;
+            grid-template-columns: 48px 1fr;
+            gap: 16px;
             align-items: stretch;
         }
         .calendar-week-row .week-content {
@@ -166,7 +166,7 @@
         }
         /* Блок месяца: центрирован по вертикали относительно длины месяца справа */
         .month-label-wrap {
-            flex: 0 0 36px;
+            flex: 0 0 48px;
             padding-top: 0;
             margin-top: var(--month-center-offset-px, 0);
             display: flex;
@@ -177,17 +177,17 @@
             min-height: 0;
             overflow: hidden;
         }
-        /* Вертикальный текст: одна колонка «Февраль (13/28)» */
+        /* Вертикальный текст: одна колонка «Февраль (13/28)», шрифт как у «Текущая серия» */
         .month-label-vertical {
             writing-mode: vertical-rl;
             transform: rotate(180deg);
             white-space: nowrap;
             text-orientation: mixed;
-            font-size: 10px;
-            line-height: 1.15;
+            font-size: 13px;
+            line-height: 1.2;
         }
         .month-label-vertical.short {
-            font-size: 11px;
+            font-size: 13px;
         }
         .month-label-wrap .month-label {
             font-weight: 600;
@@ -243,32 +243,4 @@
         /* Текущий день — синяя обводка (box-shadow не влияет на layout) */
         .day-cell.today {
             box-shadow: 0 0 0 2px #1976d2;
-            color: #1976d2;
-            font-weight: 600;
-        }
-        .day-cell.today.status-good {
-            color: #fff;
-        }
-        .day-cell.today.status-minimum {
-            color: #0d47a1;
-        }
-    </style>
-</head>
-<body>
-    <div class="habit-switcher">
-        <span class="habit-label">Привычка</span>
-        <button type="button" class="habit-title-btn" id="habit-title-btn" aria-haspopup="listbox" aria-expanded="false">
-            <span id="habit-title-text">Выбери привычку</span>
-        </button>
-        <div class="habit-dropdown" id="habit-dropdown" role="listbox"></div>
-        <div class="streak-stats" id="streak-stats"></div>
-    </div>
-    <div class="calendar-legend">
-        <span class="calendar-legend-item"><span class="calendar-legend-square no-data"></span> нет отметки</span>
-        <span class="calendar-legend-item"><span class="calendar-legend-square minimum"></span> базовый минимум</span>
-        <span class="calendar-legend-item"><span class="calendar-legend-square good"></span> хорошо поработали</span>
-    </div>
-    <div id="calendar"></div>
-    <script src="calendar.js"></script>
-</body>
-</html>
+        
