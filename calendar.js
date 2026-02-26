@@ -390,29 +390,6 @@ function renderCalendar() {
         const firstNonNullIndex = rowData.days.findIndex(d => d !== null);
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
 
-        const monthLabelWrap = document.createElement('div');
-        monthLabelWrap.className = 'month-label-wrap';
-        if (isLastRowOfMonth) {
-            if (firstNonNullIndex >= 0) {
-                row.dataset.monthOffset = String(firstNonNullIndex);
-            }
-            const firstDay = rowData.days.find(d => d !== null);
-            const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
-            const rowMonth = rowData.month;
-            const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
-
-            const monthLabel = document.createElement('div');
-            monthLabel.className = 'month-label month-label-vertical';
-            monthLabel.textContent = monthsFull[rowMonth];
-            monthLabelWrap.appendChild(monthLabel);
-
-            const monthProgress = document.createElement('div');
-            monthProgress.className = 'month-progress month-label-vertical';
-            monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
-            monthLabelWrap.appendChild(monthProgress);
-        }
-        row.appendChild(monthLabelWrap);
-
         const weekContent = document.createElement('div');
         weekContent.className = 'week-content';
 
@@ -435,6 +412,33 @@ function renderCalendar() {
         });
         weekContent.appendChild(cellsRow);
         row.appendChild(weekContent);
+
+        const monthLabelWrap = document.createElement('div');
+        monthLabelWrap.className = 'month-label-wrap';
+        if (isLastRowOfMonth) {
+            if (firstNonNullIndex >= 0) {
+                row.dataset.monthOffset = String(firstNonNullIndex);
+            }
+            const firstDay = rowData.days.find(d => d !== null);
+            const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
+            const rowMonth = rowData.month;
+            const firstDayOfMonth = firstDay ? firstDay.date.getDate() : 1;
+            const isFullMonth = firstDayOfMonth === 1;
+
+            const monthLabel = document.createElement('div');
+            monthLabel.className = 'month-label month-label-vertical' + (isFullMonth ? '' : ' short');
+            monthLabel.textContent = isFullMonth ? monthsFull[rowMonth] : monthsShort[rowMonth];
+            monthLabelWrap.appendChild(monthLabel);
+
+            if (isFullMonth) {
+                const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+                const monthProgress = document.createElement('div');
+                monthProgress.className = 'month-progress month-label-vertical';
+                monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
+                monthLabelWrap.appendChild(monthProgress);
+            }
+        }
+        row.appendChild(monthLabelWrap);
 
         grid.appendChild(row);
     });
