@@ -405,18 +405,22 @@ function renderCalendar() {
             const firstDayOfMonth = firstDay ? firstDay.date.getDate() : 1;
             const isFullMonth = firstDayOfMonth === 1;
 
-            const monthLabel = document.createElement('div');
-            monthLabel.className = 'month-label month-label-vertical' + (isFullMonth ? '' : ' short');
+            const labelBlock = document.createElement('div');
+            labelBlock.className = 'month-label-vertical' + (isFullMonth ? '' : ' short');
+
+            const monthLabel = document.createElement('span');
+            monthLabel.className = 'month-label';
             monthLabel.textContent = isFullMonth ? monthsFull[rowMonth] : monthsFull[rowMonth].slice(0, 3);
-            monthLabelWrap.appendChild(monthLabel);
+            labelBlock.appendChild(monthLabel);
 
             if (isFullMonth) {
                 const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
-                const monthProgress = document.createElement('div');
-                monthProgress.className = 'month-progress month-label-vertical';
-                monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
-                monthLabelWrap.appendChild(monthProgress);
+                const monthProgress = document.createElement('span');
+                monthProgress.className = 'month-progress';
+                monthProgress.textContent = ` (${activeDays}/${totalDays})`;
+                labelBlock.appendChild(monthProgress);
             }
+            monthLabelWrap.appendChild(labelBlock);
         }
         row.appendChild(monthLabelWrap);
 
