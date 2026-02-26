@@ -30,6 +30,8 @@ function getUserId() {
 
 const monthsShort = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН',
     'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
+const monthsFull = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 let dayData = {};
 let habitTexts = [];
@@ -254,6 +256,17 @@ function renderStreaks() {
     el.appendChild(longSpan);
 }
 
+/** Статистика за месяц: { activeDays, totalDays }. */
+function getMonthlyStats(year, month) {
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    let activeDays = 0;
+    for (let d = 1; d <= totalDays; d++) {
+        const status = getDayData(year, month, d);
+        if (isActiveDay(status)) activeDays++;
+    }
+    return { activeDays, totalDays };
+}
+
 /** Понедельник = первый день недели. Возвращает понедельник для даты d. */
 function getMonday(d) {
     const date = new Date(d);
@@ -375,11 +388,31 @@ function renderCalendar() {
         const row = document.createElement('div');
         row.className = 'calendar-week-row';
 
-        const monthLabel = document.createElement('div');
-        monthLabel.className = 'month-label';
+        const firstNonNullIndex = rowData.days.findIndex(d => d !== null);
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
-        monthLabel.textContent = isLastRowOfMonth ? monthsShort[rowData.month] : '';
-        row.appendChild(monthLabel);
+
+        const monthLabelWrap = document.createElement('div');
+        monthLabelWrap.className = 'month-label-wrap';
+        if (isLastRowOfMonth) {
+            if (firstNonNullIndex >= 0) {
+                row.dataset.monthOffset = String(firstNonNullIndex);
+            }
+            const firstDay = rowData.days.find(d => d !== null);
+            const rowYear = firstDay ? firstDay.date.getFullYear() : today.getFullYear();
+            const rowMonth = rowData.month;
+            const { activeDays, totalDays } = getMonthlyStats(rowYear, rowMonth);
+
+            const monthLabel = document.createElement('div');
+            monthLabel.className = 'month-label month-label-vertical';
+            monthLabel.textContent = monthsFull[rowMonth];
+            monthLabelWrap.appendChild(monthLabel);
+
+            const monthProgress = document.createElement('div');
+            monthProgress.className = 'month-progress month-label-vertical';
+            monthProgress.textContent = `Выполнено ${activeDays}/${totalDays}`;
+            monthLabelWrap.appendChild(monthProgress);
+        }
+        row.appendChild(monthLabelWrap);
 
         const weekContent = document.createElement('div');
         weekContent.className = 'week-content';
@@ -408,6 +441,19 @@ function renderCalendar() {
     });
 
     container.appendChild(grid);
+
+    // Выравнивание метки месяца по первому дню: смещение в px по высоте ячейки
+    requestAnimationFrame(() => {
+        const firstRow = grid.querySelector('.calendar-week-row');
+        const sampleCell = firstRow?.querySelector('.cells-row .day-cell:not(.empty)');
+        const cellHeight = sampleCell ? sampleCell.offsetHeight : 40;
+        const gap = 4;
+        grid.querySelectorAll('.calendar-week-row').forEach((r) => {
+            const offset = parseInt(r.dataset.monthOffset || '0', 10);
+            r.style.setProperty('--month-offset-px', `${(cellHeight + gap) * offset}px`);
+        });
+    });
+
     renderStreaks();
 }
 

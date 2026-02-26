@@ -435,22 +435,4 @@ function renderCalendar() {
     renderStreaks();
 }
 
-document.getElementById('habit-title-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDropdown();
-});
-
-document.addEventListener('click', () => closeDropdown());
-
-document.getElementById('habit-dropdown').addEventListener('click', (e) => e.stopPropagation());
-
-async function init() {
-    habitTexts = await loadHabits();
-    if (habitTexts.length) {
-        selectedHabitId = habitTexts[0].id;
-    }
-    renderHabitSwitcher();
-    await loadCalendarData(selectedHabitId);
-}
-
-init();
+document.getElementById('habi
