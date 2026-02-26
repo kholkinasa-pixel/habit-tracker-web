@@ -130,7 +130,8 @@ async function loadCalendarData(habitId) {
             renderCalendar();
             return;
         }
-        dayData = await res.json();
+        const raw = await res.json();
+        dayData = (typeof raw === 'object' && raw !== null) ? raw : {};
     } catch (e) {
         console.error('Ошибка загрузки календаря:', e);
         const msg = e.message || String(e);
@@ -284,7 +285,8 @@ function renderCalendar() {
     futureStart.setDate(today.getDate() + 14);
     const mondayFuture2 = getMonday(futureStart);
 
-    const dataDates = Object.keys(dayData).map(k => {
+    const dataKeys = Object.keys(dayData || {});
+    const dataDates = dataKeys.map(k => {
         const [y, m, d] = k.split('-').map(Number);
         return new Date(y, m - 1, d);
     });
@@ -368,6 +370,7 @@ function renderCalendar() {
     }
 
     const container = document.getElementById('calendar');
+    if (!container) return;
     container.innerHTML = '';
     container.className = 'calendar-view';
 
@@ -460,22 +463,32 @@ function renderCalendar() {
     renderStreaks();
 }
 
-document.getElementById('habit-title-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDropdown();
-});
-
-document.addEventListener('click', () => closeDropdown());
-
-document.getElementById('habit-dropdown').addEventListener('click', (e) => e.stopPropagation());
-
-async function init() {
-    habitTexts = await loadHabits();
-    if (habitTexts.length) {
-        selectedHabitId = habitTexts[0].id;
-    }
-    renderHabitSwitcher();
-    await loadCalendarData(selectedHabitId);
+function setupListeners() {
+    const btn = document.getElementById('habit-title-btn');
+    const dd = document.getElementById('habit-dropdown');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown(); });
+    if (dd) dd.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => closeDropdown());
 }
 
-init();
+async function init() {
+    try {
+        setupListeners();
+        habitTexts = await loadHabits();
+        if (habitTexts.length) {
+            selectedHabitId = habitTexts[0].id;
+        }
+        renderHabitSwitcher();
+        await loadCalendarData(selectedHabitId);
+    } catch (err) {
+        console.error('init error:', err);
+        showLoadError('Ошибка загрузки: ' + (err && err.message ? err.message : String(err)));
+        renderCalendar();
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
