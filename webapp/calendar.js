@@ -391,29 +391,6 @@ function renderCalendar() {
         const firstNonNullIndex = rowData.days.findIndex(d => d !== null);
         const isLastRowOfMonth = index === displayRows.length - 1 || displayRows[index + 1].month !== rowData.month;
 
-        const weekContent = document.createElement('div');
-        weekContent.className = 'week-content';
-
-        const cellsRow = document.createElement('div');
-        cellsRow.className = 'cells-row';
-        rowData.days.forEach((day) => {
-            const cell = document.createElement('div');
-            cell.className = 'day-cell';
-            if (day === null) {
-                cell.classList.add('empty');
-            } else if (day.isFuture) {
-                cell.classList.add('blocked');
-                cell.textContent = day.dayNum;
-            } else {
-                cell.classList.add('status-' + (day.status || 'no-data'));
-                if (day.isToday) cell.classList.add('today');
-                if (day.isToday) cell.textContent = day.dayNum;
-            }
-            cellsRow.appendChild(cell);
-        });
-        weekContent.appendChild(cellsRow);
-        row.appendChild(weekContent);
-
         const monthLabelWrap = document.createElement('div');
         monthLabelWrap.className = 'month-label-wrap';
         if (isLastRowOfMonth) {
@@ -440,6 +417,29 @@ function renderCalendar() {
             }
         }
         row.appendChild(monthLabelWrap);
+
+        const weekContent = document.createElement('div');
+        weekContent.className = 'week-content';
+
+        const cellsRow = document.createElement('div');
+        cellsRow.className = 'cells-row';
+        rowData.days.forEach((day) => {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (day === null) {
+                cell.classList.add('empty');
+            } else if (day.isFuture) {
+                cell.classList.add('blocked');
+                cell.textContent = day.dayNum;
+            } else {
+                cell.classList.add('status-' + (day.status || 'no-data'));
+                if (day.isToday) cell.classList.add('today');
+                if (day.isToday) cell.textContent = day.dayNum;
+            }
+            cellsRow.appendChild(cell);
+        });
+        weekContent.appendChild(cellsRow);
+        row.appendChild(weekContent);
 
         grid.appendChild(row);
     });
