@@ -423,4 +423,78 @@ function renderCalendar() {
         }
         row.appendChild(monthLabelWrap);
 
-        const weekContent = document.createElement('di
+        const weekContent = document.createElement('div');
+        weekContent.className = 'week-content';
+
+        const cellsRow = document.createElement('div');
+        cellsRow.className = 'cells-row';
+        rowData.days.forEach((day) => {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (day === null) {
+                cell.classList.add('empty');
+            } else if (day.isFuture) {
+                cell.classList.add('blocked');
+                cell.textContent = day.dayNum;
+            } else {
+                cell.classList.add('status-' + (day.status || 'no-data'));
+                if (day.isToday) cell.classList.add('today');
+                if (day.isToday) cell.textContent = day.dayNum;
+            }
+            cellsRow.appendChild(cell);
+        });
+        weekContent.appendChild(cellsRow);
+        row.appendChild(weekContent);
+
+        grid.appendChild(row);
+    });
+
+    container.appendChild(grid);
+
+    // Центрирование подписи месяца по вертикали относительно блока месяца (всех его строк)
+    requestAnimationFrame(() => {
+        const gridGap = 4;
+        grid.querySelectorAll('.calendar-week-row').forEach((r) => {
+            const monthRows = parseInt(r.dataset.monthRows || '0', 10);
+            if (monthRows <= 0) return;
+            const rowHeight = r.offsetHeight;
+            const totalMonthHeight = monthRows * rowHeight + (monthRows - 1) * gridGap;
+            const labelInLastRow = (monthRows - 1) * (rowHeight + gridGap) + rowHeight / 2;
+            const monthCenter = totalMonthHeight / 2;
+            const offsetPx = monthCenter - labelInLastRow;
+            r.style.setProperty('--month-center-offset-px', `${offsetPx}px`);
+        });
+    });
+
+    renderStreaks();
+}
+
+function setupListeners() {
+    const btn = document.getElementById('habit-title-btn');
+    const dd = document.getElementById('habit-dropdown');
+    if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); toggleDropdown(); });
+    if (dd) dd.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => closeDropdown());
+}
+
+async function init() {
+    try {
+        setupListeners();
+        habitTexts = await loadHabits();
+        if (habitTexts.length) {
+            selectedHabitId = habitTexts[0].id;
+        }
+        renderHabitSwitcher();
+        await loadCalendarData(selectedHabitId);
+    } catch (err) {
+        console.error('init error:', err);
+        showLoadError('Ошибка загрузки: ' + (err && err.message ? err.message : String(err)));
+        renderCalendar();
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
