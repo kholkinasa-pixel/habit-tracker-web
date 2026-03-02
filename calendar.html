@@ -261,4 +261,46 @@
             background: var(--app-blocked-cell);
             border: 1px solid var(--app-blocked-cell-border);
         }
-        /* Пр
+        /* Прошедшие даты — только заливка, без обводки */
+        .day-cell.status-no-data {
+            background: var(--app-no-data-cell);
+        }
+        .day-cell.status-minimum {
+            background: #90caf9;
+        }
+        .day-cell.status-good {
+            background: #1976d2;
+            color: #fff;
+        }
+        /* Текущий день — синяя обводка (box-shadow не влияет на layout) */
+        .day-cell.today {
+            box-shadow: 0 0 0 2px #1976d2;
+            color: #1976d2;
+            font-weight: 600;
+        }
+        .day-cell.today.status-good {
+            color: #fff;
+        }
+        .day-cell.today.status-minimum {
+            color: #0d47a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="habit-switcher">
+        <span class="habit-label">Привычка</span>
+        <button type="button" class="habit-title-btn" id="habit-title-btn" aria-haspopup="listbox" aria-expanded="false">
+            <span id="habit-title-text">Выбери привычку</span>
+        </button>
+        <div class="habit-dropdown" id="habit-dropdown" role="listbox"></div>
+        <div class="streak-stats" id="streak-stats"></div>
+    </div>
+    <div class="calendar-legend">
+        <span class="calendar-legend-item"><span class="calendar-legend-square no-data"></span> нет отметки</span>
+        <span class="calendar-legend-item"><span class="calendar-legend-square minimum"></span> базовый минимум</span>
+        <span class="calendar-legend-item"><span class="calendar-legend-square good"></span> хорошо поработали</span>
+    </div>
+    <div id="calendar"></div>
+    <script src="calendar.js"></script>
+</body>
+</html>
