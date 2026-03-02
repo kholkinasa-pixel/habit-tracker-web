@@ -249,8 +249,8 @@ async def add_habit(user_id: int, habit_text: str) -> Tuple[bool, Optional[str]]
     count = await get_habits_count(user_id)
     if count >= max_habits:
         return False, (
-            f"У тебя максимум {max_habits} привычек. "
-            "Много планов — мало дела! Постарайся сфокусироваться на существующих привычках для начала. "
+            f"У тебя максимум {max_habits} привычки. "
+            "Много планов — мало дела. Постарайся сфокусироваться. "
             "Если уверен, что нужно ещё, свяжись с администратором @LanaAlexNa"
         )
 
