@@ -248,7 +248,11 @@ async def add_habit(user_id: int, habit_text: str) -> Tuple[bool, Optional[str]]
     max_habits = await get_user_max_habits(user_id)
     count = await get_habits_count(user_id)
     if count >= max_habits:
-        return False, f"У тебя максимум {max_habits} привычек. Чтобы добавить ещё, свяжись с администратором."
+        return False, (
+            f"У тебя максимум {max_habits} привычек. "
+            "Много планов — мало дела! Постарайся сфокусироваться на существующих привычках для начала. "
+            "Если уверен, что нужно ещё, свяжись с администратором @LanaAlexNa"
+        )
 
     pool = _get_pool()
     async with pool.acquire() as conn:
