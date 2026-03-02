@@ -147,6 +147,7 @@ async def init_db() -> None:
             min_size=1,
             max_size=10,
             command_timeout=60,
+            statement_cache_size=0,  # pgbouncer (transaction/statement) не поддерживает prepared statements
         )
     except Exception as e:
         logger.error(
