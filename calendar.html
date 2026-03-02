@@ -13,26 +13,33 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
-            --app-bg: var(--tg-theme-bg-color, #F2F2F2);
-            --app-card-bg: var(--tg-theme-bg-color, #fff);
-            --app-secondary-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
-            --app-no-data-cell: var(--tg-theme-secondary-bg-color, #fff);
-            --app-blocked-cell: var(--tg-theme-secondary-bg-color, #F2F2F2);
+            --app-bg: #F2F2F2;
+            --app-card-bg: #fff;
+            --app-no-data-cell: #fff;
+            --app-blocked-cell: #F2F2F2;
+            --app-blocked-cell-border: #fff;
             --app-cell-border: rgba(128, 128, 128, 0.25);
             --app-divider: rgba(0, 0, 0, 0.06);
+            --app-dropdown-item-border: rgba(0, 0, 0, 0.04);
             --app-shadow: rgba(0, 0, 0, 0.06);
+            --app-dropdown-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.08);
         }
         @media (prefers-color-scheme: dark) {
             :root {
                 --app-bg: var(--tg-theme-bg-color, #18222d);
                 --app-card-bg: var(--tg-theme-bg-color, #1c2936);
-                --app-secondary-bg: var(--tg-theme-secondary-bg-color, #232e3b);
                 --app-no-data-cell: var(--tg-theme-secondary-bg-color, #2d3a48);
                 --app-blocked-cell: var(--tg-theme-secondary-bg-color, #232e3b);
+                --app-blocked-cell-border: rgba(255, 255, 255, 0.2);
                 --app-cell-border: rgba(255, 255, 255, 0.2);
                 --app-divider: rgba(255, 255, 255, 0.08);
+                --app-dropdown-item-border: rgba(255, 255, 255, 0.08);
                 --app-shadow: rgba(0, 0, 0, 0.3);
+                --app-dropdown-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.08);
             }
+        }
+        @media (prefers-color-scheme: dark) {
+            .day-cell.status-no-data { color: var(--tg-theme-text-color, #e4e4e7); }
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -90,7 +97,7 @@
             margin-top: 6px;
             border-radius: 10px;
             background: var(--app-card-bg);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 0 1px var(--app-divider);
+            box-shadow: var(--app-dropdown-shadow);
             max-height: 220px;
             overflow-y: auto;
             border: 1px solid var(--app-divider);
@@ -104,7 +111,7 @@
             font-weight: 500;
             cursor: pointer;
             color: var(--tg-theme-text-color, #333);
-            border-bottom: 1px solid var(--app-divider);
+            border-bottom: 1px solid var(--app-dropdown-item-border);
             transition: background 0.15s ease;
         }
         .habit-dropdown-item:last-child { border-bottom: none; }
@@ -250,49 +257,8 @@
         /* Заблокированные (будущие) дни — фон как у страницы, тонкая обводка */
         .day-cell.blocked {
             background: var(--app-blocked-cell);
-            border: 1px solid var(--app-cell-border);
+            border: 1px solid var(--app-blocked-cell-border);
         }
         /* Прошедшие даты — только заливка, без обводки */
         .day-cell.status-no-data {
-            background: var(--app-no-data-cell);
-            color: var(--tg-theme-text-color, #333);
-        }
-        .day-cell.status-minimum {
-            background: #90caf9;
-        }
-        .day-cell.status-good {
-            background: #1976d2;
-            color: #fff;
-        }
-        /* Текущий день — синяя обводка (box-shadow не влияет на layout) */
-        .day-cell.today {
-            box-shadow: 0 0 0 2px #1976d2;
-            color: #1976d2;
-            font-weight: 600;
-        }
-        .day-cell.today.status-good {
-            color: #fff;
-        }
-        .day-cell.today.status-minimum {
-            color: #0d47a1;
-        }
-    </style>
-</head>
-<body>
-    <div class="habit-switcher">
-        <span class="habit-label">Привычка</span>
-        <button type="button" class="habit-title-btn" id="habit-title-btn" aria-haspopup="listbox" aria-expanded="false">
-            <span id="habit-title-text">Выбери привычку</span>
-        </button>
-        <div class="habit-dropdown" id="habit-dropdown" role="listbox"></div>
-        <div class="streak-stats" id="streak-stats"></div>
-    </div>
-    <div class="calendar-legend">
-        <span class="calendar-legend-item"><span class="calendar-legend-square no-data"></span> нет отметки</span>
-        <span class="calendar-legend-item"><span class="calendar-legend-square minimum"></span> базовый минимум</span>
-        <span class="calendar-legend-item"><span class="calendar-legend-square good"></span> хорошо поработали</span>
-    </div>
-    <div id="calendar"></div>
-    <script src="calendar.js"></script>
-</body>
-</html>
+            background: var(--app-no-data-cel
