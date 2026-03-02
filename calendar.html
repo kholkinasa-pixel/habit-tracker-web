@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="light dark">
     <title>Habit Calendar</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
@@ -11,18 +12,40 @@
     </script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --app-bg: var(--tg-theme-bg-color, #F2F2F2);
+            --app-card-bg: var(--tg-theme-bg-color, #fff);
+            --app-secondary-bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+            --app-no-data-cell: var(--tg-theme-secondary-bg-color, #fff);
+            --app-blocked-cell: var(--tg-theme-secondary-bg-color, #F2F2F2);
+            --app-cell-border: rgba(128, 128, 128, 0.25);
+            --app-divider: rgba(0, 0, 0, 0.06);
+            --app-shadow: rgba(0, 0, 0, 0.06);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --app-bg: var(--tg-theme-bg-color, #18222d);
+                --app-card-bg: var(--tg-theme-bg-color, #1c2936);
+                --app-secondary-bg: var(--tg-theme-secondary-bg-color, #232e3b);
+                --app-no-data-cell: var(--tg-theme-secondary-bg-color, #2d3a48);
+                --app-blocked-cell: var(--tg-theme-secondary-bg-color, #232e3b);
+                --app-cell-border: rgba(255, 255, 255, 0.2);
+                --app-divider: rgba(255, 255, 255, 0.08);
+                --app-shadow: rgba(0, 0, 0, 0.3);
+            }
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             padding: 16px;
-            background: #F2F2F2;
+            background: var(--app-bg);
             color: var(--tg-theme-text-color, #333);
         }
         .habit-switcher {
             margin-bottom: 16px;
             padding: 14px 16px;
-            background: #fff;
+            background: var(--app-card-bg);
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 1px 3px var(--app-shadow);
             border: none;
         }
         .habit-label {
@@ -66,11 +89,11 @@
             display: none;
             margin-top: 6px;
             border-radius: 10px;
-            background: #fff;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.08);
+            background: var(--app-card-bg);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 0 1px var(--app-divider);
             max-height: 220px;
             overflow-y: auto;
-            border: 1px solid rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--app-divider);
         }
         .habit-dropdown.open {
             display: block;
@@ -81,7 +104,7 @@
             font-weight: 500;
             cursor: pointer;
             color: var(--tg-theme-text-color, #333);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+            border-bottom: 1px solid var(--app-divider);
             transition: background 0.15s ease;
         }
         .habit-dropdown-item:last-child { border-bottom: none; }
@@ -131,8 +154,8 @@
             flex-shrink: 0;
         }
         .calendar-legend-square.no-data {
-            background: #fff;
-            border: 1px solid rgba(128, 128, 128, 0.25);
+            background: var(--app-no-data-cell);
+            border: 1px solid var(--app-cell-border);
         }
         .calendar-legend-square.minimum { background: #90caf9; }
         .calendar-legend-square.good { background: #1976d2; }
@@ -224,14 +247,15 @@
             background: transparent;
             visibility: hidden;
         }
-        /* Заблокированные (будущие) дни — фон как у страницы, белая обводка */
+        /* Заблокированные (будущие) дни — фон как у страницы, тонкая обводка */
         .day-cell.blocked {
-            background: #F2F2F2;
-            border: 1px solid #fff;
+            background: var(--app-blocked-cell);
+            border: 1px solid var(--app-cell-border);
         }
         /* Прошедшие даты — только заливка, без обводки */
         .day-cell.status-no-data {
-            background: #fff;
+            background: var(--app-no-data-cell);
+            color: var(--tg-theme-text-color, #333);
         }
         .day-cell.status-minimum {
             background: #90caf9;
