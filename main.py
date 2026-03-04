@@ -281,6 +281,7 @@ ONBOARDING_PROMPT = (
 async def cmd_start(message: Message, state: FSMContext) -> None:
     await state.clear()  # Сброс FSM при старте/отмене
     user_id = message.from_user.id
+    logger.info("start: user_id=%s", user_id)
     habits_count = await get_habits_count(user_id)
 
     if habits_count == 0:
