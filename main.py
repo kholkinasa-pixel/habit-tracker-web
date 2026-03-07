@@ -29,6 +29,7 @@ from aiogram.types import (
     WebAppInfo,
     ReplyKeyboardMarkup,
     KeyboardButton,
+    LinkPreviewOptions,
 )
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -209,7 +210,7 @@ async def handle_mark_select_habit(callback: CallbackQuery) -> None:
 async def handle_onboarding_add_habit(callback: CallbackQuery, state: FSMContext) -> None:
     """Онбординг: при нажатии «➕ Добавить привычку» — переход в FSM добавления привычки."""
     await state.set_state(AddingHabit.waiting_for_name)
-    await callback.message.answer(ONBOARDING_PROMPT, parse_mode="HTML")
+    await callback.message.answer(ONBOARDING_PROMPT, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
     await callback.answer()
 
 
@@ -356,7 +357,7 @@ async def cmd_set_habit(message: Message, state: FSMContext) -> None:
 async def cmd_menu_add_habit(message: Message, state: FSMContext) -> None:
     """Кнопка меню: запуск FSM добавления привычки."""
     await state.set_state(AddingHabit.waiting_for_name)
-    await message.answer(ONBOARDING_PROMPT, parse_mode="HTML")
+    await message.answer(ONBOARDING_PROMPT, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 
 @dp.message(AddingHabit.waiting_for_name)
@@ -426,7 +427,7 @@ async def handle_settings_mark_progress(callback: CallbackQuery, state: FSMConte
 async def handle_settings_add(callback: CallbackQuery, state: FSMContext) -> None:
     # Добавить привычку: переход в FSM
     await state.set_state(AddingHabit.waiting_for_name)
-    await callback.message.edit_text(ONBOARDING_PROMPT, reply_markup=None, parse_mode="HTML")
+    await callback.message.edit_text(ONBOARDING_PROMPT, reply_markup=None, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
     await callback.answer()
 
 
