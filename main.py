@@ -209,7 +209,7 @@ async def handle_mark_select_habit(callback: CallbackQuery) -> None:
 async def handle_onboarding_add_habit(callback: CallbackQuery, state: FSMContext) -> None:
     """Онбординг: при нажатии «➕ Добавить привычку» — переход в FSM добавления привычки."""
     await state.set_state(AddingHabit.waiting_for_name)
-    await callback.message.answer(ONBOARDING_PROMPT)
+    await callback.message.answer(ONBOARDING_PROMPT, parse_mode="HTML")
     await callback.answer()
 
 
@@ -273,7 +273,8 @@ ONBOARDING_TEXT = (
 )
 ONBOARDING_PROMPT = (
     "✍️ Напишите привычку, которую хотите развить.\n\n"
-    "Например: «Тренироваться 30 минут в день» 💪"
+    "Например: «Тренироваться 30 минут в день» 💪\n\n"
+    "О том, как организовать привычку и не забросить её через неделю, можно прочитать в канале <a href=\"https://t.me/keepgoingtoday/17\">Сегодня лучше</a>"
 )
 
 
@@ -355,7 +356,7 @@ async def cmd_set_habit(message: Message, state: FSMContext) -> None:
 async def cmd_menu_add_habit(message: Message, state: FSMContext) -> None:
     """Кнопка меню: запуск FSM добавления привычки."""
     await state.set_state(AddingHabit.waiting_for_name)
-    await message.answer(ONBOARDING_PROMPT)
+    await message.answer(ONBOARDING_PROMPT, parse_mode="HTML")
 
 
 @dp.message(AddingHabit.waiting_for_name)
@@ -425,7 +426,7 @@ async def handle_settings_mark_progress(callback: CallbackQuery, state: FSMConte
 async def handle_settings_add(callback: CallbackQuery, state: FSMContext) -> None:
     # Добавить привычку: переход в FSM
     await state.set_state(AddingHabit.waiting_for_name)
-    await callback.message.edit_text(ONBOARDING_PROMPT, reply_markup=None)
+    await callback.message.edit_text(ONBOARDING_PROMPT, reply_markup=None, parse_mode="HTML")
     await callback.answer()
 
 
